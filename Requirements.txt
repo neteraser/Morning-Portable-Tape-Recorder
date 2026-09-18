@@ -1,0 +1,3 @@
+Requirements.
+
+Morning Portable Tape Recorder requires DirectX SDK and DirectX Runtime Redist packages to be installed.
