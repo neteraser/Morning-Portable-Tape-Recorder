@@ -1,0 +1,1 @@
+This Record (RECOUT0006.mp3) was made with my Morning Pro Tweed Amp tube combo amplifier and my 1999 Fender American Standard Stratocaster and a cool 25 USD Gen 2 USB microphone called Coolcold HK2.
