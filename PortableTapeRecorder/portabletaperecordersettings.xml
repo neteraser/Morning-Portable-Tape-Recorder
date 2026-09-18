@@ -1,0 +1,61 @@
+<?xml version="1.0" ?>
+<portabletaperecorder w="900" h="540">
+
+	<settings id="adcsetup" tapeSlowdownSamples="2" adcIntMaxNatural="32500" />
+	
+	<settings id="exporttags" artist="yworkshopru" />
+
+	<button id="quit" image="but_quit.png" onMouseOver="but_quit_over.png" x="850" y="50"/>
+	<button id="hide" image="but_hide.png" onMouseOver="but_hide_over.png" x="815" y="50"/>
+	
+	<switch id="normalize" image1="but_normalize.png" onMouseOver1="but_normalize_over.png" x="215" y="465"
+			image2="but_limit.png" onMouseOver2="but_limit_over.png"  />
+
+	<button id="addriaa" image="but_addriaa.png" onMouseOver="but_addriaa_over.png" x="375" y="465"/>
+	<button id="undofx" image="but_undofx.png" onMouseOver="but_undofx_over.png" x="375" y="495"/>
+	<button id="settings" image="but_settings.png" onMouseOver="but_settings_over.png" x="500" y="25"/>
+	<button id="apply" image="but_apply.png" onMouseOver="but_apply_over.png" x="680" y="18"/>
+
+	<switch id="rec"
+		image1="but_rec.png" onMouseOver1="but_rec_over.png"
+		image2="but_stop.png" onMouseOver2="but_stop_over.png"
+		x="20" y="470"
+	/>
+
+	<switch id="play"
+		image1="but_play.png" onMouseOver1="but_play_over.png"
+		image2="but_stopplay.png" onMouseOver2="but_stopplay_over.png"
+		x="90" y="470"
+	/>
+
+	<switch id="zoom"
+		image1="but_zoomin.png" onMouseOver1="but_zoomin_over.png"
+		image2="but_zoomout.png" onMouseOver2="but_zoomout_over.png"
+		image3="but_zoom3.png" onMouseOver3="but_zoom3_over.png"
+		x="430" y="25"
+	/>
+
+	<switch id="remaster"
+	image1="but_remaster.png" onMouseOver1="but_remaster_over.png"
+	image2="but_remaster_playing.png" onMouseOver2="but_remaster_playing_over.png"
+	x="560" y="465"
+	/>
+
+	<switch id="loop"
+		image1="but_loop_off.png" onMouseOver1="but_loop_off_over.png"
+		image2="but_loop_on.png" onMouseOver2="but_loop_on_over.png"
+		x="165" y="485"
+	/>
+
+	<switch id="export" 
+			image1="but_exportwav.png" onMouseOver1="but_exportwav_over.png" 
+			image2="but_exportmp3.png" onMouseOver2="but_exportmp3_over.png" 
+			x="215" y="495"/>
+
+	<track id="track" x="50" y="250" w="700" h="100" />
+
+	<meter id="meter" image="meter.png" x="850" y="100" w="36" h="320" offsetx="12" offsety="12"/>
+
+	<equalizer y="435" cropLeft="1" cropRight="0"/>
+	
+</portabletaperecorder>
