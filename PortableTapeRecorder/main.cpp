@@ -1,12 +1,7 @@
 //=============================================================================
 // main.cpp
 
-#include <d3d9.h>
-#include <d3dx9.h>
-#include <windows.h>
-
-#define  DIRECTINPUT_VERSION 0x0800
-#include <dinput.h>
+#include "main.h"
 
 #include "log.h"
 
@@ -18,6 +13,7 @@
 
 #include "resource.h"
 #include "UpdatingResources.h"
+#include "resourcecompiler.h"
 
 #include <vector>
 #include <map>
@@ -25,7 +21,7 @@
 
 HWND mainWnd;
 
-#define RECORDER_VERSION_STRING "Version v.0.3.0"
+#define RECORDER_VERSION_STRING "Version v.0.4.0"
 
 const char* diskName = "PortableTapeRecorder";
 const char* diskDesc = "Portable Tape Recorder";
@@ -44,9 +40,18 @@ int windowHeight = 360;
 int windowLeft = 0;
 int windowTop = 0;
 
+bool disableWindowMovement = false;
+
 IDirectInput* di = 0;
 IDirectInputDevice* keyboard = 0;
 IDirectInputDevice* mouse = 0;
+
+#define REC_PI 3.14159265358979323846
+
+float DegreesToRadians(float degrees)
+{
+	return degrees * REC_PI / 180.0f;
+}
 
 bool InitInput(HINSTANCE instance, HWND context)
 {
@@ -113,6 +118,16 @@ bool MouseInBox_WH(int x, int y, int w, int h)
 	if ( mouseX > x && mouseX < x + w && mouseY > y && mouseY < y + h )
 		return true;
 
+	return false;
+}
+
+bool MouseInACircle(float cx, float cy, float r)
+{
+	float dx = fabs(cx - mouseX);
+	float dy = fabs(cy - mouseY);
+	float dr = sqrtf(dx * dx + dy * dy);
+	if (dr < r)
+		return true;
 	return false;
 }
 
@@ -189,18 +204,22 @@ void UpdateInput(HWND context)
 	
 		static bool isUp = false;
 		static __int64 clickTime = 0;
+		static __int64 pressTime = 0;
 
 		bMouseClick = false;
 
 		if( MouseL() ) 
 		{
+			if(isUp)
+				pressTime = timeTicks;
 			isUp = false;
 		}
 		else
 		{
 			if(!isUp) 
 			{
-				bMouseClick = true;
+				if(timeTicks - pressTime < 250)
+					bMouseClick = true;
 			}
 			isUp = true;
 		}
@@ -392,15 +411,8 @@ void ResetColor()
 	SetColor(255, 255, 255, 255);
 }
 
-struct Picture
-{
-	IDirect3DTexture9* texture;
-	int width;
-	int height;
-};
-
 Picture pictures[256];
-int picturesNumber = 0;
+int picturesNumber = 1;
 
 int LoadPicture(const char* image)
 {
@@ -412,7 +424,13 @@ int LoadPicture(const char* image)
 	
 	if(!tx)
 	{
-		return -1;
+		pictures[0].texture = 0;
+		pictures[0].width = 0;
+		pictures[0].height = 0;
+
+		WriteToLog("Failed to load picture: %s", image);
+
+		return 0;
 	}
 
 	D3DSURFACE_DESC desc;
@@ -496,7 +514,7 @@ void DrawPicture(int n, float i, float j, float ii = 0, float ij = 0, int ofx=0,
   v[3].w  = 1;
 
   SetPicture(n);
-    
+  
   d3dd->DrawIndexedPrimitiveUP(D3DPT_TRIANGLELIST, 0, 4, 2, idx, D3DFMT_INDEX16, &v[0], sizeof(vtx_t));
 }
 
@@ -526,6 +544,73 @@ int DrawButton(int butPictures[2], int x, int y, bool clickOrDown = true, bool f
 
 	return result;
 }
+
+/////////////////////////////
+
+Sound sounds[16];
+int soundsNumber = 1;
+float* soundallocations[16];
+int soundallocationsNumber = 0;
+
+int LoadSound(const char* filename)
+{
+	HSAMPLE mybass = BASS_SampleLoad(FALSE, filename, 0, 0, 1, BASS_SAMPLE_FLOAT | BASS_SAMPLE_MONO);
+	//HMUSIC mybass = BASS_MusicLoad(FALSE, filename, 0, 0, BASS_SAMPLE_FLOAT | BASS_SAMPLE_MONO | BASS_MUSIC_PRESCAN, 48000);
+	if (mybass == 0)
+	{
+		WriteToLog("BASS SampleLoad failed at loading a sound: %s, errorcode: %i", filename, BASS_ErrorGetCode());
+
+		Sound sndret;
+		if (RetrieveSoundFromCode(filename, sndret))
+		{
+			WriteToLog("Retrieved %s sound from code.", filename);
+			sounds[soundsNumber] = sndret;
+			return soundsNumber++;
+		}
+
+		sounds[0].snd = 0;
+		sounds[0].length = 0;
+		sounds[0].sampledata = 0;
+
+		return 0;
+	}
+	int lenb = BASS_ChannelGetLength(mybass, BASS_POS_BYTE);
+	if (lenb < 0)
+		return -1;
+	sounds[soundsNumber].snd = mybass;
+	sounds[soundsNumber].length = lenb / sizeof(float);
+	float* newalloc = (float*)malloc(sounds[soundsNumber].length * sizeof(float));
+	soundallocations[soundallocationsNumber++] = newalloc;
+	sounds[soundsNumber].sampledata = newalloc;//new float[sounds[soundsNumber].length];
+	//BASS_ChannelGetData(mybass, sounds[soundsNumber].sampledata, lenb | BASS_DATA_FLOAT);
+	BASS_SampleGetData(mybass, sounds[soundsNumber].sampledata);
+
+	BakeSoundToCode(sounds[soundsNumber], filename);
+
+	return soundsNumber++;
+}
+
+int LoadSound(std::string filename)
+{
+	return LoadSound(filename.c_str());
+}
+
+void FreeSounds()
+{
+	for (int i = 0; i < soundallocationsNumber; ++i)
+	{
+		free(soundallocations[i]);
+		//delete [] sounds[i].sampledata;
+	}
+	soundallocationsNumber = 0;
+}
+
+//////////////////////////
+
+int beepforme;
+
+
+////////////////////////////
 
 HMENU menu;
 NOTIFYICONDATA notifyIconData;
@@ -812,7 +897,11 @@ trackX = 25, trackY = 125, trackWidth = 750, trackHeight = 100,
 remasterX = 460, remasterY = 460,
 applyX = 680, applyY = 18,
 settingsX = 350, settingsY = 25,
-loopX = 180, loopY = 480;
+loopX = 180, loopY = 480,
+onoffX = 400, onoffY=10,
+regulatorX=600, regulatorY=465, regulatorDiameter=60;
+
+double regulatorDefaultValue = 0.5;
 
 std::string
 quitImage, quitOverImage,
@@ -836,9 +925,14 @@ meterImage,
 settingsImage, settingsOverImage,
 applyImage, applyOverImage,
 loopOnImage, loopOnOverImage,
-loopOffImage, loopOffOverImage;
+loopOffImage, loopOffOverImage,
+onImage, onOverImage,
+offImage, offOverImage,
+regulatorImage, regulatorPtrImage, regulatorPressImage;
 
 std::string exportartist = "Tape Recorder";
+
+std::string beepSound = "beepforme.wav";
 
 int back;
 int settingsback;
@@ -864,6 +958,11 @@ int settingsimg[2];
 int applyimg[2];
 int loopon[2];
 int loopoff[2];
+int onimg[2];
+int offimg[2];
+int regulatorimg, regulatorptrimg, regulatorpressimg;
+int arrowup;
+int arrowdown;
 int px1;
 
 
@@ -1373,8 +1472,8 @@ void DrawMainScreen()
 		SetColor(255, 255, 255, 255);
 		DrawPicture(px1, meterX + meterOffsetX, meterY + meterHeight - dbDelimLen - meterOffsetY, meterWidth - meterOffsetX * 2, 3);
 
-		DrawText(font, 700, 470, 700 + 150, 470 + 25, D3DCOLOR_RGBA(255, 255, 255, 128), "RMS Live: %.2f", db);
-		DrawText(font, 700, 470 + 25, 700 + 150, 470 + 50, D3DCOLOR_RGBA(255, 255, 255, 128), "RMS Total: %.2f", dbTotal);
+		DrawText(font, 720, 460, 720 + 150, 460 + 25, D3DCOLOR_RGBA(255, 255, 255, 128), "RMS Live: %.2f", db);
+		DrawText(font, 720, 460 + 25, 720 + 150, 460 + 50, D3DCOLOR_RGBA(255, 255, 255, 128), "RMS Total: %.2f", dbTotal);
 
 		if(KeyTrig(DIK_P))
 		{
@@ -1390,9 +1489,82 @@ void DrawMainScreen()
 			bloop = !bloop;
 			RecorderSetLoop(bloop);
 		}
+
+		canclick = !IsRecorderWriting();
+
+		if (!canclick)
+			SetAlpha(128);
+
+		static bool rewriteOnOrOff = true;
+		if (DrawButton(rewriteOnOrOff ? onimg : offimg, onoffX, onoffY) && canclick)
+		{
+			rewriteOnOrOff = !rewriteOnOrOff;
+			RecorderSetRewriteMode(rewriteOnOrOff);
+		}
+
+		ResetColor();
+
+		////////////////////////
+		/// regulator
+		static bool regulating = false;
+
+		DrawPicture(regulating? regulatorpressimg : regulatorimg, regulatorX, regulatorY);
+
+		//static float 
+		static float ptrv = (1.0f - regulatorDefaultValue) * 300.0f + 30.0f;
+		float ptrx = (cosf(DegreesToRadians(-90.0f + ptrv)) + 1.0f) / 2.0f;
+		float ptry = (sinf(DegreesToRadians(-90.0f + ptrv)) + 1.0f) / 2.0f;
+		float regwidth = (float) pictures[regulatorimg].width;
+		float regheight = (float)pictures[regulatorimg].height;
+
+		if (MouseInACircle(regulatorX + regwidth / 2, regulatorY + regheight / 2, regulatorDiameter))
+		{
+			if (MouseL())
+			{
+				regulating = true;
+			}
+			if (MouseDoubleClick())
+				ptrv = (1.0f - regulatorDefaultValue) * 300.0f + 30.0f;
+		}
+		if (!MouseL() && regulating)
+		{
+			regulating = false;
+		}
+		if (regulating)
+		{
+			ptrv += (float)(MouseMoveX() + MouseMoveY()) / 2.0f;
+			if (ptrv > 330)
+				ptrv = 330;
+			if (ptrv < 30)
+				ptrv = 30;
+			disableWindowMovement = true;
+		}
+		float regradius = regulatorDiameter / 2.0f * 0.66f;
+
+		ptrx = ptrx * regradius * 2.0f;
+		ptry = (1.0f - ptry) * regradius * 2.0f;
+
+		// pictures[regulatorptrimg].width / 2
+		ptrx = ptrx - pictures[regulatorptrimg].width / 2.0f;
+		ptry = ptry - pictures[regulatorptrimg].height / 2.0f;
+
+		ptrx += (regwidth / 2.0f - regradius);
+		ptry += (regheight / 2.0f - regradius);
+
+
+		DrawPicture(regulatorptrimg, (float)regulatorX + ptrx, (float)regulatorY + ptry);
+
+		RecorderSetQFX(1.0f - (ptrv - 30.0f) / 300.0f);
+
+		DrawText(font, 720, 460 + 50, 720 + 150, 460 + 75, D3DCOLOR_RGBA(255, 255, 255, 128), "QFX: %.2f", RecorderGetQFX());
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+static int devPos = 0;
+static int recDevPos = 0;
+static const int maxDevicesOnTheScreen = 8;
 
 void DrawSettingsScreen()
 {
@@ -1405,22 +1577,121 @@ void DrawSettingsScreen()
 	bool devicechanged = false;
 	int devNum = curDevNum, recDevNum = curRecDevNum;
 
-	for (int i = 0; i < allDevRecNames.size(); ++i)
+	int sizediff = allDevRecNames.size() - maxDevicesOnTheScreen;
+
+	if (sizediff > 0)
 	{
-		std::string devname = allDevRecNames[i];
+		bool isover = false;
+		if (MouseInBox_WH(50, 125 + 1, 350, 18))
+		{
+			isover = true;
+			if (MouseClick())
+			{
+				recDevPos -= 1;
+				if (recDevPos < 0)
+					recDevPos = 0;
+			}
+		}
+		DrawPicture(px1, 50, 125 + 1, 350, 18);
+
+		if (isover)
+			SetAlpha(192);
+
+		DrawPicture(arrowup, 200 + 15, 127);
+
+		ResetColor();
+
+		isover = false;
+		if (MouseInBox_WH(50, 145 + maxDevicesOnTheScreen * 20 + 1, 350, 18))
+		{
+			isover = true;
+			if (MouseClick())
+			{
+				recDevPos += 1;
+				if (recDevPos > sizediff)
+					recDevPos = sizediff;
+			}
+		}
+		DrawPicture(px1, 50, 145 + maxDevicesOnTheScreen * 20 + 1, 350, 18);
+
+		if (isover)
+			SetAlpha(192);
+
+		DrawPicture(arrowdown, 200 + 15, 147 + maxDevicesOnTheScreen * 20);
+
+		ResetColor();
+	}
+
+	sizediff = allDevNames.size() - maxDevicesOnTheScreen;
+
+	if(sizediff > 0)
+	{
+		bool isover = false;
+		if (MouseInBox_WH(500, 125 + 1, 350, 18))
+		{
+			isover = true;
+			if (MouseClick())
+			{
+				devPos -= 1;
+				if (devPos < 0)
+					devPos = 0;
+			}
+		}
+		DrawPicture(px1, 500, 125 + 1, 350, 18);
+
+		if (isover)
+			SetAlpha(192);
+
+		DrawPicture(arrowup, 650 + 15, 127);
+
+		ResetColor();
+
+		isover = false;
+		if (MouseInBox_WH(500, 145 + maxDevicesOnTheScreen * 20 + 1, 350, 18))
+		{
+			isover = true;
+			if (MouseClick())
+			{
+				devPos += 1;
+				if (devPos > sizediff)
+					devPos = sizediff;
+			}
+		}
+		DrawPicture(px1, 500, 145 + maxDevicesOnTheScreen * 20 + 1, 350, 18);
+
+		if (isover)
+			SetAlpha(192);
+
+		DrawPicture(arrowdown, 650 + 15, 147 + maxDevicesOnTheScreen * 20);
+
+		ResetColor();
+
+	}
+
+	for (int i = 0; i < maxDevicesOnTheScreen; ++i)
+	{
+		int id = i + recDevPos;
+
+		if (id < 0)
+			break;
+
+		if (id >= allDevRecNames.size())
+			break;
+
+		std::string devname = allDevRecNames[id];
 		devname.resize(32);
 
 		ResetColor();
 
-		if (MouseInBox_WH(50, 125 + i * 20 + 1, 350, 18))
+		if (MouseInBox_WH(50, 145 + i * 20 + 1, 350, 18))
 		{
 			if (MouseClick())
 			{
-				if (allDevRecNames[i] != devRecName)
+				if (allDevRecNames[id] != devRecName)
 				{
 					//BASS_RecordSetDevice(i);
-					devRecName = allDevRecNames[i];
-					recDevNum = i;
+					devRecName = allDevRecNames[id];
+					recDevNum = id;
 					devicechanged = true;
 				}
 			}
@@ -1430,34 +1701,41 @@ void DrawSettingsScreen()
 			}
 		}
 
-		if ( curRecDevNum == i )
+		if ( curRecDevNum == id)
 			SetColor(128, 128, 128, 255);
 
-		DrawPicture(px1, 50, 125 + i * 20 + 1, 350, 18);
+		DrawPicture(px1, 50, 145 + i * 20 + 1, 350, 18);
 
 		ResetColor();
 
-		DrawText(font, 50, 125 + i * 20, 400, 125 + i * 20 + 20, D3DCOLOR_RGBA(0, 0, 0, 255), devname.c_str());
+		DrawText(font, 50, 145 + i * 20, 400, 145 + i * 20 + 20, D3DCOLOR_RGBA(0, 0, 0, 255), devname.c_str());
 	}
 
-
-	for (int i = 0; i < allDevNames.size(); ++i)
+	for (int i = 0; i < maxDevicesOnTheScreen; ++i)
 	{
-		std::string devname = allDevNames[i];
+		int id = i + devPos;
+
+		if (id < 0)
+			break;
+
+		if (id >= allDevNames.size())
+			break;
+
+		std::string devname = allDevNames[id];
 		devname.resize(32);
 
 		ResetColor();
 
-		if (MouseInBox_WH(500, 125 + i * 20 + 1, 350, 18))
+		if (MouseInBox_WH(500, 145 + i * 20 + 1, 350, 18))
 		{
 			if (MouseClick())
 			{
-				if (allDevNames[i] != devName)
+				if (allDevNames[id] != devName)
 				{
 					//RecorderDeviceRetrieve(i, curRecDevNum);
 					//BASS_SetDevice(i);
-					devName = allDevNames[i];
-					devNum = i;
+					devName = allDevNames[id];
+					devNum = id;
 					devicechanged = true;
 				}
 			}
@@ -1467,15 +1745,15 @@ void DrawSettingsScreen()
 			}
 		}
 
-		if (curDevNum == i)
+		if (curDevNum == id)
 			SetColor(128, 128, 128, 255);
 
 
-		DrawPicture(px1, 500, 125 + i * 20 + 1, 350, 18);
+		DrawPicture(px1, 500, 145 + i * 20 + 1, 350, 18);
 
 		ResetColor();
 
-		DrawText(font, 500, 125 + i * 20, 850, 125 + i * 20 + 20, D3DCOLOR_RGBA(0, 0, 0, 255), devname.c_str());
+		DrawText(font, 500, 145 + i * 20, 850, 145 + i * 20 + 20, D3DCOLOR_RGBA(0, 0, 0, 255), devname.c_str());
 	}
 
 	if (devicechanged)
@@ -1663,6 +1941,35 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 		temp = temp->NextSiblingElement("settings");
 	}
 
+	temp = elem->FirstChildElement("regulator");
+
+	while (temp)
+	{
+
+		const char* id = temp->Attribute("id");
+
+		if (!id)
+			break;
+
+		if (strcmp(id, "RQ") == 0)
+		{
+			temp->Attribute("defaultvalue", &regulatorDefaultValue);
+			if (regulatorDefaultValue < 0.1)
+				regulatorDefaultValue = 0.1;
+			if (regulatorDefaultValue > 1.0)
+				regulatorDefaultValue = 1.0;
+			temp->Attribute("x", &regulatorX);
+			temp->Attribute("y", &regulatorY);
+			temp->Attribute("diameter", &regulatorDiameter);
+			regulatorImage = temp->Attribute("image");
+			regulatorPressImage = temp->Attribute("onPress");
+			regulatorPtrImage = temp->Attribute("imagePtr");
+		}
+
+		temp = temp->NextSiblingElement("regulator");
+	}
+
+
 	temp = elem->FirstChildElement("button");
 
 	while ( temp )
@@ -1807,6 +2114,17 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 			exportMp3OverImage = temp->Attribute("onMouseOver2");
 		}
 
+		if (strcmp(id, "onoff") == 0)
+		{
+			temp->Attribute("x", &onoffX);
+			temp->Attribute("y", &onoffY);
+			onImage = temp->Attribute("image1");
+			onOverImage = temp->Attribute("onMouseOver1");
+			offImage = temp->Attribute("image2");
+			offOverImage = temp->Attribute("onMouseOver2");
+		}
+
+
 		temp = temp->NextSiblingElement("switch");
 	}
 
@@ -1841,6 +2159,25 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 		temp->Attribute("y", &equalizerY);
 		temp->Attribute("cropLeft", &eqCropLeft);
 		temp->Attribute("cropRight", &eqCropRight);
+	}
+
+	///////////////////////////////////////////////////////
+	// 
+	temp = elem->FirstChildElement("resources");
+
+	while (temp)
+	{
+		const char* id = temp->Attribute("id");
+
+		if (!id)
+			break;
+
+		if (strcmp(id, "beep") == 0)
+		{
+			beepSound = temp->Attribute("sound");
+		}
+
+		temp = temp->NextSiblingElement("resources");
 	}
 
 	//////////////////////////////////////////////////////////////
@@ -1971,6 +2308,19 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 	loopoff[0] = LoadPicture("images/" + loopOffImage);
 	loopoff[1] = LoadPicture("images/" + loopOffOverImage);
 
+	onimg[0] = LoadPicture("images/" + onImage);
+	onimg[1] = LoadPicture("images/" + onOverImage);
+
+	offimg[0] = LoadPicture("images/" + offImage);
+	offimg[1] = LoadPicture("images/" + offOverImage);
+
+	regulatorimg = LoadPicture("images/" + regulatorImage);
+	regulatorpressimg = LoadPicture("images/" + regulatorPressImage);
+	regulatorptrimg = LoadPicture("images/" + regulatorPtrImage);
+
+	arrowup = LoadPicture("images/arrowup.png");
+	arrowdown = LoadPicture("images/arrowdown.png");
+
 	px1 = LoadPicture("images/1px.png");
 
 	///////////////////////////////////////////////////////////////
@@ -2000,6 +2350,17 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 	ZeroMemory(pointsY, sizeof(pointsY));
 	ZeroMemory(prevPointsY, sizeof(prevPointsY));
 
+	//////////////////////////////////
+
+	beepforme = LoadSound("sounds/" + beepSound);
+
+	if ( beepforme != -1 )
+	{
+		RecorderLoadBeepSound(sounds[beepforme].sampledata, sounds[beepforme].length);
+	}
+
+	//WriteToLog("Sound len: %i", sounds[beepforme].length);
+
 	///////////////////////////////////////////////////////////////
 
 	if (!BASS_RecordInit(-1))
@@ -2007,8 +2368,16 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 		MessageBox(0, "Recording failed!", "Sorry!", MB_ICONERROR | MB_OK);
 		return -1;
 	}
+
+	/*if (!BASS_SetConfig(BASS_CONFIG_BUFFER, 250))
+	{
+		WriteToLog("BASS SetConfig at app init failed.");
+	}*/
 	
-	BASS_SetConfig(BASS_CONFIG_REC_BUFFER, 10);
+	if (!BASS_SetConfig(BASS_CONFIG_REC_BUFFER, RECBUFFERDELAYMS))
+	{
+		WriteToLog("BASS SetConfig at app init failed.");
+	}
 
 	InitRec(baserec);
 
@@ -2020,6 +2389,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 	
 	//static DWORD bassrecorddevice = BASS_RecordGetDevice();
 
+	BuildResourceLink("precompiledresources/resources.cpp");
 
 	///////////////////////////////////////////////////////////////
  
@@ -2053,7 +2423,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 			
 			static int n = 0;
 			
-			bool disableWindowMovement = false;
+			disableWindowMovement = false;
 
 			noButtonIsOver = true;
 
@@ -2204,6 +2574,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
   }
 	
 	//SaveRec();
+
+	FreeSounds();
 
 	BASS_RecordFree();
 

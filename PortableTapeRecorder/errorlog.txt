@@ -1,0 +1,13 @@
+Portable Tape Recorder, log started...
+BASS error at the cycle: 23
+Retrieving audio device: devnum 1, recdevnum 0
+Record started... ticktime: 431948338
+Record stopped... ticktime: 431955023
+Remaster started..., timeticks: 431961918
+Remaster stopped..., timeticks: 431970665
+Record started playing... timeticks: 431973656
+Record stopped playing..., timticks: 431981753
+Record started playing... timeticks: 431982183
+Record stopped playing..., timticks: 431990268
+Record started playing... timeticks: 431990820
+Record stopped playing..., timticks: 431998824

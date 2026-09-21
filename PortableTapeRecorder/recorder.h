@@ -5,19 +5,27 @@
 #include <math.h>
 #include "bass/bass.h"
 
+#define RECBUFFERDELAYMS 38
+//#define RECBUFFERLONGDELAYMS 1500
+
+#define RECUSELIBAUDIOFILE 1
+#define RECUSELIBLAME 1
+
 #define RECSAMPLERATE 48000
 #define RECBUFSAMPLES(seconds) (seconds * RECSAMPLERATE)
 #define RECBUFSTANDARDSIZE RECBUFSAMPLES(250)
 //#define RECBUFSIZEWITHZEROCRASHES RECBUFSAMPLES(260)
 #define SAFEBUFRESERVESIZE RECBUFSAMPLES(10)
 
-#define RECMAXUNDOLEVEL (10)
+#define RECMAXUNDOLEVEL (12)
 
 // cheap ADC: 257 (256+1)
 // expensive ADC: 266 (33+1)
 #define RECCHEAPADCBUF (257)
 #define RECEXPENSIVEADCBUF (266)
 #define RECSLOWDOWNSAMPLES (258)
+
+#define RECBEEPLENMAX (8192)
 
 struct Record
 {
@@ -56,9 +64,9 @@ inline float Int16ToFloat(short in)
 {
 	float out = 0;
 	if (in > 0)
-		out = (float)(in) / 32767.0f;
+		out = ((float)in) / 32767.0f;
 	else
-		out = (float(in)) / 32768.0f;
+		out = ((float)in) / 32768.0f;
 	return out;
 }
 
@@ -91,32 +99,40 @@ inline short FloatToInt16(float in)
 
 __inline short PackInt16ForWriting(short in)
 {
+//	return in;
 	short out;
 	char bv[2];
-	bv[0] = (char)((short)in >> 8);
-	bv[1] = (char)(((short)in << 8) >> 8);
+	bv[0] = (char)((in) >> 8);
+	bv[1] = (char)(in & 0x00FF);
 
 	char signbit;
-	signbit = bv[1] >> 7;
-	bv[1] = bv[1] << 1;
-	bv[1] = bv[1] | signbit;
+	signbit = ( bv[0] & 0b10000000 ) >> 7;
+	bv[0] = bv[0] << 1;
+	bv[0] = bv[0] | signbit;
 
-	out = *((short*)bv);
+	out = *(short*)bv;
 	return out;
 }
 
 __inline short UnpackInt16ForReading(short in)
 {
+//	return in;
 	short out;
 	char bv[2];
-	bv[0] = (char)((short)in >> 8);
-	bv[1] = (char)(((short)in << 8) >> 8);
+	bv[0] = (char)((in) >> 8);
+	bv[1] = (char)(in & 0x00FF);
 
 	char signbit;
-	signbit = bv[0] & 0b00000001;
+	signbit = bv[1] & 0b00000001;
 	signbit = signbit << 7;
-	bv[0] = bv[0] >> 1;
-	bv[0] = bv[0] | signbit;
+	bv[1] = bv[1] >> 1;
+	bv[1] = bv[1] | signbit;
+	
+
+	/*char bswap;
+	bswap = bv[0];
+	bv[0] = bv[1];
+	bv[1] = bswap;*/
 
 	out = *((short*)bv);
 
@@ -125,6 +141,8 @@ __inline short UnpackInt16ForReading(short in)
 
 __inline float PolarizeFloat(float in, bool plusorminus = true /*plus*/, bool writeorread = true /*write*/)
 {
+//	return in;
+//	return in;
 	float out = in;
 	// clamp here, let it be
 	if (out > 1.0f)
@@ -134,16 +152,10 @@ __inline float PolarizeFloat(float in, bool plusorminus = true /*plus*/, bool wr
 
 	if (plusorminus)
 	{
-		if (in > 0)
+		if (out < 0)
 		{
-			out = 1.0f - in;
-		}
-	}
-	else
-	{
-		if (in < 0)
-		{
-			out = -(1.0f - fabs(in));
+			out = 1.0f - fabs(out);
+			out = -out;
 		}
 	}
 	return out;
@@ -213,7 +225,7 @@ inline float VolumeToDb(float volume)
 
 void SaveRec(bool wavormp3 = true);
 
-void WriteRec();
+void WriteRec(bool forcerec = false);
 
 void RecorderDebugCheck();
 
@@ -254,8 +266,20 @@ bool RecorderCanDoFX();
 
 extern HWND mainWnd;
 
-extern DWORD error;
+//extern DWORD gerror;
 
 bool RecorderDeviceRetrieve(int devNum = -1, int recDevNum = -1);
 
 void RecorderSetLoop(bool loop);
+
+void RecorderSetRewriteMode(bool hddrewrite);
+
+void RecorderSetQFX(float qfxvalue = 1.0f /* 0.1...1.0f */);
+
+float RecorderGetQFX();
+
+void RecorderLoadBeepSound(const float* buf, int len /* len to 8192 max */);
+
+void RecorderFixRemasterOffset();
+
+float RecCalculatePeak(Record& rec, int begin = 0, int end = -1);

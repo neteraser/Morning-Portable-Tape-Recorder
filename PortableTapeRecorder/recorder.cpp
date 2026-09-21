@@ -1,13 +1,25 @@
 
 #include "recorder.h"
 #include "log.h"
+#include <string>
+#include <cmath>
+#include <fstream>
+#ifdef RECUSELIBAUDIOFILE
 #include "audiofile.h"
+#endif
+#ifdef RECUSELIBLAME
 #include "lame/lame.h"
+#endif
 #include <immintrin.h>
 #include <direct.h>
 
 Record baserec;
 Record streamrec;
+
+float recbeep[RECBEEPLENMAX];
+int recbeep_initialoffset = 0;
+float recbeepregion[96000];
+
 //int recOrStop = 1;
 //int playOrStop = 1;
 
@@ -16,8 +28,13 @@ extern int adcIntMaxNatural;
 
 std::string gfilename;
 
+bool bDoRewrites = true;
+
+float recQFX = 1.0f;
+
 void InitFolders()
 {
+	gfilename.reserve(1024);
 	gfilename = getenv("PROGRAMDATA");
 	gfilename += "\\Morning\\";
 	_mkdir(gfilename.c_str());
@@ -129,11 +146,11 @@ BOOL CALLBACK record_proc(HRECORD handle,
 	{
 		length = length / sizeof(float);
 
-		if (length > 8192)
+		/*if (length > 8192)
 		{
 			WriteToLog("Rec buffer overflow, clamping the callback's length.");
 			length = 8192;
-		}
+		}*/
 
 		int lenrest = length % 8;
 		int len8 = length - lenrest;
@@ -151,7 +168,7 @@ BOOL CALLBACK record_proc(HRECORD handle,
 
 		for (int i = 0; i < len8; )
 		{
-			__m256 fvi_intr = _mm256_load_ps(&fbuf[i]);
+			__m256 fvi_intr = _mm256_load_ps(fbuf + i);
 
 			//float fvi = fbuf[i];
 
@@ -209,9 +226,10 @@ BOOL CALLBACK record_proc(HRECORD handle,
 				return FALSE;
 			}
 		}
-		for (int i = len8 * 8; i < lenrest; ++i)
+		for (int i = len8; i < length; ++i)
 		{
 			float fvi = fbuf[i];
+			fvi = FixDeviceBit(fvi);
 			fvi *= recDeviceVolume;
 			CheckRecorderPeak(fvi);
 
@@ -244,45 +262,63 @@ static float proc256prevbuf = 0.0f;
 
 void RecProcess256Samples()
 {
-	_m_prefetchrs(baserec.rectempbuf);
+//	if (baserec.temppos < 256)
+//		return;
 
-	baserec.temppos -= 256;
+	_m_prefetchrs(baserec.rectempbuf);
 
 	int recslowdownsamples = RECSLOWDOWNSAMPLES;
 	if (tapeSlowdownSamples > 0)
 		recslowdownsamples = 256 + tapeSlowdownSamples;
 
+	//disable
+	//recslowdownsamples = 256;
+
 	for (int i = 0; i < recslowdownsamples; ++i)
 	{
-		float src_idx = (float)i / (float)(recslowdownsamples) * 256.0f;
-		int idx = (int)roundf(src_idx) + baserec.temppos;
-		int idxprev = (int)roundf(src_idx - 1.0f) + baserec.temppos;
-		int idxnext = (int)roundf(src_idx + 1.0f) + baserec.temppos;
+		float src_idx = ((float)i* 256.0f / (float)(recslowdownsamples));
+		int idx = (int)roundf(src_idx);
+		int idxprev = (int)idx - 1;
+		int idxnext = (int)idx + 1;
 		float spos = 0.5f + (float)(recslowdownsamples) / 256.0f - 1.0f;
-
+		
 		float vclean = baserec.rectempbuf[idx];
 
 		float v1safe = 0;
-		if (idx > 0)
+		if (idxprev >= 0)
 			v1safe = baserec.rectempbuf[idxprev];
 		else
 			v1safe = proc256prevbuf;
 
 		float v2safe = 0;
-		if (idx - baserec.temppos + 1 < 256)
+		if (idxnext < 256)
 			v2safe = baserec.rectempbuf[idxnext];
 		else
 			v2safe = vclean;
 
 		float fintrp = CalcSplineInterpolation(v1safe, vclean, v2safe, spos);
 
-		float fv = vclean + fintrp * 0.1f;
+		float fv = vclean +fintrp * 0.1f;
 
 		//fv += 0.16f;
 		
 		baserec.recbuf[baserec.bufpos++] = fv;
 	}
-	proc256prevbuf = baserec.rectempbuf[baserec.temppos + 255];
+
+	//memmove(baserec.rectempbuf, baserec.rectempbuf + 256, (baserec.temppos - 256) * sizeof(float));
+	
+	proc256prevbuf = baserec.rectempbuf[255];
+
+	baserec.temppos -= 256;
+
+	if (baserec.temppos > 0)
+	{
+		for (int i = 0; i < baserec.temppos; ++i)
+		{
+			baserec.rectempbuf[i] = baserec.rectempbuf[i + 256];
+		}
+		//baserec.rectempbuf[baserec.temppos] = 0.0;
+	}
 }
 
 void InitRec(Record& rec)
@@ -388,12 +424,18 @@ void PostProcessRec(Record& rec) {
 	PrepareRIAAFilter(baseriaafilter, 30, 150, 2000);
 	rec.peak = 0;
 	rec.peakpos = 0;
+
+	float remasterq = 1.0f;
+//	if (IsRecorderRemastering())
+//		remasterq = 0.01f;
+
 	for (int i = 0; i < rec.bufpos; ++i)
 	{
 		float fsample = rec.recbuf[i];
 		float ffilter = 0;
 		ffilter = ProcessRIAAFilter(baseriaafilter, fsample);
-		ffilter *= 0.166f;
+		ffilter *= 0.166f * (recQFX + 0.5f);
+		ffilter *= remasterq;
 		fsample = (fsample + ffilter) / 2.0f;
 		// fadeout
 		if (i > (rec.bufpos - 24000))
@@ -455,7 +497,7 @@ void StartRec(Record& rec) {
 }
 
 
-Record prevrec[(RECMAXUNDOLEVEL * 2)];
+Record prevrec[(RECMAXUNDOLEVEL + 4)];
 
 int undolevel = 0;
 
@@ -480,11 +522,37 @@ void AddRIAAToRec(Record& rec)
 		float fsample = rec.recbuf[i];
 		float friaa = 0;
 		friaa = ProcessRIAAFilter(baseriaafilter, fsample);
-		friaa *= 0.066f;
+		friaa *= 0.166f * recQFX;
 		fsample = (fsample + friaa) / 1.66f;
 		CheckRecorderPeak(fsample, i);
 		rec.recbuf[i] = fsample;
 	}
+}
+
+float RecCalculatePeak(Record& rec, int begin, int end)
+{
+	if (begin < 0)
+		return 0.0f;
+	if (begin >= rec.bufpos)
+		return 0.0f;
+	if (end < 0)
+		end = rec.bufpos;
+	if (end > rec.bufpos)
+		end = rec.bufpos;
+	float fmaxv = 0;
+	int maxpos = 0;
+	for (int i = begin; i < end; ++i)
+	{
+		float fsample = abs(rec.recbuf[i]);
+		if (fsample > fmaxv)
+		{
+			fmaxv = fsample;
+			maxpos = i;
+		}
+	}
+	rec.peak = fmaxv;
+	rec.peakpos = maxpos;
+	return fmaxv;
 }
 
 void NormalizeRec(Record& rec)
@@ -504,13 +572,14 @@ void NormalizeRec(Record& rec)
 	float fmult = 0;
 	fmult = 1.0f / fmaxv;
 	fmult *= 0.999f;
+	fmult *= ((float)adcIntMaxNatural / 32767.0f);
 	for (int i = 0; i < rec.bufpos; ++i)
 	{
 		float fv = rec.recbuf[i];		
 		fv *= fmult;
 		rec.recbuf[i] = fv;
 	}
-	rec.peak = 0.999f;
+	rec.peak = 0.999f * (float)adcIntMaxNatural / 32767.0f;
 }
 
 void LimitRec(Record& rec)
@@ -528,7 +597,7 @@ void LimitRec(Record& rec)
 		const float limiter_peak = 0.7f;
 		if (fabs(fv) > limiter_peak)
 		{
-			fmult2 = (fabs(fv) - limiter_peak) * 0.2f;
+			fmult2 = (fabs(fv) - limiter_peak) * 0.66f * (1.0f - recQFX) / 2.0f;
 			if (fv > 0)
 				fv = limiter_peak + fmult2;
 			else
@@ -587,7 +656,7 @@ void ReadRec()
 			}
 			else
 			{
-				fvp = fv;
+				fvp = 0.0f;
 			}
 			float fvv = baserec.recbuf[readpos];
 			baserec.recbuf[readpos] = (fv * 0.7f + fvp * 0.3f) - fvv * 0.1f;
@@ -603,6 +672,8 @@ void StopRec(Record& rec)
 {
 	if (recOrPlay >= 0)
 		return;
+
+	//WriteRec(true);
 
 	WriteToLog("Record stopped... ticktime: %i", timeGetTime());
 
@@ -679,14 +750,49 @@ DWORD CALLBACK play_proc(HSTREAM handle,
 	streamrec.playcallback_dt = timeGetTime() - streamrec.lastplaycallback_time;
 	streamrec.lastplaycallback_time = timeGetTime();
 
+	int recspeedupsamples = 256;
+	float fmult = 1.0f;
+	
+	if (IsRecorderRemastering())
+	{
+		//fmult = 0.66f;
+		recspeedupsamples = RECSLOWDOWNSAMPLES;
+		if (tapeSlowdownSamples > 0)
+			recspeedupsamples = 256 + tapeSlowdownSamples;
+	}
+
 	float* fbuf = (float*)buffer;
 	unsigned ilength = length / sizeof(float);
+
 	for (int i = 0; i < ilength; ++i)
 	{
-		fbuf[i] = streamrec.recbuf[streamrec.playpos++];
+		float fi = (float)i * (float)(recspeedupsamples) / 256.0f;
+		int src_idx = (int)roundf(fi);
+		src_idx += streamrec.playpos;
+
+		int idxprev = (int)roundf(fi - 1.0);
+		if (idxprev < 0)
+			idxprev = 0;
+
+		idxprev += streamrec.playpos;
+
+		float fv = streamrec.recbuf[(int)src_idx];
+
+		float fvprev = streamrec.recbuf[idxprev];
+
+		float midpos = 256.0f / (float)recspeedupsamples;
+
+		float finterp = fv * midpos + fvprev * (1.0f - midpos);
+			
+		fbuf[i] = ( fv + finterp ) / 2.0f;
+
+		//streamrec.playpos = (int)src_idx;
+		
+		//streamrec.playpos += 1;
+
 		//if (baserec.playpos >= RECBUFSTANDARDSIZE)
 		//	return BASS_STREAMPROC_END;
-		if (streamrec.playpos >= streamrec.bufpos + 4800)
+		if (src_idx >= streamrec.bufpos + 4800)
 		{
 			if(playloop && remastermode != 0)
 			{
@@ -699,6 +805,7 @@ DWORD CALLBACK play_proc(HSTREAM handle,
 			}
 		}
 	}
+	streamrec.playpos += (int)roundf((float)ilength * (float)recspeedupsamples / 256.0f);
 	return length;
 }
 
@@ -810,6 +917,7 @@ void SaveRec(bool wavormp3)
 
 	if (wavormp3)
 	{
+#ifdef RECUSELIBAUDIOFILE
 		AudioFile<float> afile;
 		afile.setNumChannels(1);
 		afile.setSampleRate(RECSAMPLERATE);
@@ -825,10 +933,15 @@ void SaveRec(bool wavormp3)
 		static char savemessage[1024];
 		sprintf(savemessage, "Recording saved to %s !", recoutfilename);
 
+#else
+		static char savemessage[1024];
+		sprintf(savemessage, "WAV export was switched off in this version of the app");
+#endif
 		MessageBox(0, savemessage, "Saved!", MB_ICONINFORMATION | MB_OK);
 	}
 	else
 	{
+#ifdef RECUSELIBLAME
 		static char recoutfilename[1024];
 		sprintf(recoutfilename, getMusicFileName("output/RECOUT%04i.mp3"), reccount);
 
@@ -893,6 +1006,11 @@ void SaveRec(bool wavormp3)
 		static char savemessage[1024];
 		sprintf(savemessage, "Recording saved to %s !", recoutfilename);
 
+#else 
+		static char savemessage[1024];
+		sprintf(savemessage, "MP3 export was switched off in this version of the app.");
+#endif
+
 		MessageBox(0, savemessage, "Saved!", MB_ICONINFORMATION | MB_OK);
 	}
 
@@ -928,27 +1046,39 @@ void PreprocessRec(Record& rec)
 
 
 #define RECWRITECHUNK 128
+#define RECWRITECHUNKLONG 1024
 #define RECREWRITECOUNT 3
 
 //int recTapeRewrites = RECREWRITECOUNT;
 
-void WriteRec()
+void WriteRec(bool forcerec)
 {
+	if (!bDoRewrites && !forcerec)
+	{
+		// include write delay
+		if (baserec.bufpos - baserec.writepos < 48000)
+			return;
+	}
+
 	if (IsRecorderWriting())
 	{
 		PreprocessRec(baserec);
 
+		float fv[RECWRITECHUNKLONG];
+
+		short sv[RECREWRITECOUNT][RECWRITECHUNKLONG];
+		short svp[RECREWRITECOUNT][RECWRITECHUNKLONG];
+
 		while (baserec.writepos < baserec.bufpos)
 		{
-			int wlen = RECWRITECHUNK;
+			int wlen = bDoRewrites ? RECWRITECHUNK : RECWRITECHUNKLONG;
 			int wdif = baserec.bufpos - baserec.writepos;
 			if (wdif < wlen)
 				wlen = wdif;
 
-			float fv[RECWRITECHUNK];
-
-			short sv[RECREWRITECOUNT][RECWRITECHUNK];
-			short svp[RECREWRITECOUNT][RECWRITECHUNK];
+			float remasterq = 1.0f;
+//			if (IsRecorderRemastering())
+//				remasterq = 0.01f;
 
 			for (int i = 0; i < wlen; ++i)
 			{
@@ -956,11 +1086,16 @@ void WriteRec()
 				fvi = fvi;
 
 				float fveff = ProcessInverseRIAAFilter(baseinvriaafilter, fvi);
-				fveff *= 0.0166f;
+				fveff *= 0.0166f * (recQFX + 0.5f);
+
+				if (!bDoRewrites)
+					fveff *= 0.1f;
+				
+				fveff *= remasterq;
 
 				fvi = (fvi + fveff);
 
-				fvi += 0.001f;
+				fvi += 0.0001f;
 
 				fv[i] = fvi;
 
@@ -974,33 +1109,52 @@ void WriteRec()
 
 			// standard 
 
-			fwrite(sv[0], 2, wlen, baserec.tape);
-
-			for (int i = 1; i < RECREWRITECOUNT; ++i)
+			if (bDoRewrites)
 			{
-				fseek(baserec.tape, -wlen * 2, SEEK_CUR);
-				fwrite(sv[i], 2, wlen, baserec.tape);
+				fwrite(sv[0], 2, wlen, baserec.tape);
 			}
-			fflush(baserec.tape);
+			else
+			{
+				fwrite(sv[0], 2 * wlen, 1, baserec.tape);
+			}
+
+			if (bDoRewrites)
+			{
+				for (int i = 1; i < RECREWRITECOUNT; ++i)
+				{
+					fseek(baserec.tape, -wlen * 2, SEEK_CUR);
+					fwrite(sv[i], 2, wlen, baserec.tape);
+				}
+			}
+			if(bDoRewrites)
+				fflush(baserec.tape);
 
 			// polarized 
 
 			if (baserec.tapepolarized != 0)
 			{
 
-				fwrite(&svp[0], 2, wlen, baserec.tapepolarized);
-				//baserec.writepos += wlen;
-
-				for (int i = 1; i < RECREWRITECOUNT; ++i)
+				if (bDoRewrites)
 				{
-					fseek(baserec.tapepolarized, -wlen * 2, SEEK_CUR);
-					fwrite(&svp[i], 2, wlen, baserec.tapepolarized);
+					fwrite(svp[0], 2, wlen, baserec.tapepolarized);
 				}
-				fflush(baserec.tapepolarized);
-
-				baserec.writepos += wlen;
+				else
+				{
+					fwrite(svp[0], 2 * wlen, 1, baserec.tapepolarized);
+				}
+				if (bDoRewrites)
+				{
+					for (int i = 1; i < RECREWRITECOUNT; ++i)
+					{
+						fseek(baserec.tapepolarized, -wlen * 2, SEEK_CUR);
+						fwrite(svp[i], 2, wlen, baserec.tapepolarized);
+					}
+				}
+				if (bDoRewrites)
+					fflush(baserec.tapepolarized);
 			}
 
+			baserec.writepos += wlen;
 		}
 	}
 }
@@ -1040,6 +1194,13 @@ void RecorderDebugCheck()
 		}
 		baserec.recbuf[i] = fv;
 	}
+
+	// debug check qfx
+	if (recQFX < 0.1f)
+		recQFX = 0.1f;
+	if (recQFX > 1.0f)
+		recQFX = 1.0f;
+
 }
 
 float dummysinus = 0;
@@ -1207,6 +1368,11 @@ int remastermode = 1;
 
 void StartRemaster()
 {
+	if (undolevel < RECMAXUNDOLEVEL)
+		prevrec[undolevel++] = baserec;
+	else
+		return;
+
 	WriteToLog("Remaster started..., timeticks: %i", timeGetTime());
 
 
@@ -1219,9 +1385,13 @@ void StartRemaster()
 	//CopyMemory(streamrec.recbuf, baserec.recbuf, sizeof(baserec.recbuf));
 
 	ZeroMemory(streamrec.recbuf, 48000 * sizeof(float));
-	memcpy(streamrec.recbuf + 48000, baserec.recbuf, baserec.bufpos * sizeof(float));
-	ZeroMemory(streamrec.recbuf + baserec.bufpos + 48000, 48000 * sizeof(float));
-	streamrec.bufpos += 96000;
+
+	memcpy(streamrec.recbuf + 48000, recbeep, RECBEEPLENMAX * sizeof(float));
+
+	memcpy(streamrec.recbuf + 48000 + RECBEEPLENMAX, baserec.recbuf, baserec.bufpos * sizeof(float));
+
+	ZeroMemory(streamrec.recbuf + baserec.bufpos + 48000 + RECBEEPLENMAX, 48000 * sizeof(float));
+	streamrec.bufpos += 96000 + RECBEEPLENMAX;
 
 	ZeroMemory(baserec.recbuf, RECBUFSTANDARDSIZE * sizeof(float));
 	
@@ -1266,7 +1436,7 @@ void StartRemaster()
 
 	//BASS_RecordInit(-1);
 
-	baserec.record = BASS_RecordStart(RECSAMPLERATE, 1, BASS_SAMPLE_FLOAT, record_proc, &baserec);
+	baserec.record = BASS_RecordStart(RECSAMPLERATE, 1, BASS_SAMPLE_FLOAT, record_proc, & baserec);
 
 	if (baserec.record == 0)
 	{
@@ -1314,6 +1484,10 @@ void StopRemaster()
 
 	PostProcessRec(baserec);
 
+	memcpy(recbeepregion, baserec.recbuf, 96000 * sizeof(float));
+
+	RecorderFixRemasterOffset();
+
 	// stop playing
 	streamrec.playpos = 0;
 	baserec.unipos = 0;
@@ -1333,7 +1507,6 @@ void StopRemaster()
 	playOrStop = 1;
 
 	remastermode = 1;
-
 }
 
 bool IsRecorderPlaying()
@@ -1461,7 +1634,12 @@ bool RecorderDeviceRetrieve(int devNum, int recDevNum)
 
 	//BASS_SetConfig(BASS_CONFIG_BUFFER, 10);
 
-	if (BASS_SetConfig(BASS_CONFIG_REC_BUFFER, 10) != TRUE)
+	/*if (!BASS_SetConfig(BASS_CONFIG_BUFFER, 250))
+	{
+		WriteToLog("BASS SetConfig, BUFFER at RecorderDeviceRetrieve failed.");
+	}*/
+
+	if (BASS_SetConfig(BASS_CONFIG_REC_BUFFER, RECBUFFERDELAYMS) != TRUE)
 	{
 		WriteToLog("BASS SetConfig, REC_BUFFER at RecorderDeviceRetrieve failed");
 //		return false;
@@ -1494,4 +1672,161 @@ bool RecorderCanDoFX()
 void RecorderSetLoop(bool loop)
 {
 	playloop = loop;
+}
+
+void RecorderSetRewriteMode(bool hddrewrite)
+{
+	//if(!IsRecorderWriting())
+	bDoRewrites = hddrewrite;
+	/*if (BASS_SetConfig(BASS_CONFIG_REC_BUFFER, bDoRewrites ? RECBUFFERDELAYMS : RECBUFFERLONGDELAYMS) != TRUE)
+	{
+		WriteToLog("BASS SetConfig failed at switching rewrite mode");
+	}*/
+}
+
+void RecorderSetQFX(float qfxv)
+{
+	recQFX = qfxv;
+	if (recQFX < 0.1f)
+		recQFX = 0.1f;
+	if (recQFX > 1.0f)
+		recQFX = 1.0f;
+}
+
+float RecorderGetQFX()
+{
+	return recQFX;
+}
+
+long CalcMiddlePeakOffset(const float* buf, int len, float mult = 1.0f)
+{
+	float fvprev = 0.0f;
+	bool gmove = false;
+	int peaks[8192];
+	int peaks_n = 0;
+	for (int i = 0; i < len; ++i)
+	{
+		float fv = buf[i] * mult;
+		bool newmove = false;
+		if (fabs(fv) > 0.3f)
+		{
+			if (fv > fvprev)
+			{
+				newmove = true;
+			}
+			else
+			if (fv < fvprev)
+			{
+				newmove = false;
+			}
+			if (newmove != gmove)
+			{
+				peaks[peaks_n++] = i;
+				gmove = newmove;
+				if (peaks_n >= 8192)
+				{
+					WriteToLog("Beep check peak overflow.");
+					break;
+				}
+			}
+		}
+	}
+	long goff = 0;
+	for (int i = 0; i < peaks_n; ++i)
+	{
+		goff += peaks[i];
+	}
+	if (peaks_n > 0)
+		goff /= peaks_n;
+
+	return goff;
+}
+
+void RecorderLoadBeepSound(const float* buf, int len /* len to 8192 max */)
+{
+	if (len < 0)
+		return;
+	if (len > RECBEEPLENMAX)
+	{
+		WriteToLog("BEEP sound length is more than 8192 samples, clamping.");
+		len = RECBEEPLENMAX;
+	}
+
+
+	ZeroMemory(recbeep, RECBEEPLENMAX * sizeof(float));
+
+	for (int i = 0; i < len; ++i)
+	{
+		float fv = buf[i];
+		if (fv < -1.0f)
+			fv = -1.0f;
+		if (fv > 1.0f)
+			fv = 1.0f;
+		recbeep[i] = fv;
+	}
+	recbeep_initialoffset = CalcMiddlePeakOffset(recbeep, 8192, 1.0f);
+}
+
+Record temprec;
+
+void RecorderFixRemasterOffset()
+{
+	float regionmax = 0;
+	for (int i = 0; i < 96000; ++i)
+	{
+		float fv = fabs(recbeepregion[i]);
+		if (fv > regionmax)
+			regionmax = fv;
+	}
+	float regionmult = 1.0f / regionmax;
+	
+	int remoffset = CalcMiddlePeakOffset(recbeepregion, 96000, regionmult);
+
+	WriteToLog("Beep fix offset, standard: %i, current: %i", recbeep_initialoffset, remoffset);
+
+	float fvmult = 0.0f;
+	fvmult = RecCalculatePeak(streamrec, 48000 + RECBEEPLENMAX, -1);
+	fvmult /= RecCalculatePeak(baserec, 96000 + RECBEEPLENMAX, -1);
+	fvmult *= 0.7f;
+
+	// mix with clean with QFX and offset
+	for (int i = 0; i < baserec.bufpos; ++i)
+	{
+		int ioff_ideal = 48000 + recbeep_initialoffset;
+
+		int ioff = remoffset;
+
+		float sv = 0, fv = 0;
+
+		int istream = ioff - ioff_ideal;
+
+		if (istream >= 0)
+		{
+			sv = streamrec.recbuf[istream];
+		}
+		
+		// invert or not??? must be a setting;
+		fv = baserec.recbuf[i];
+
+		//float fvmult = streamrec.peak / baserec.peak;
+
+		baserec.recbuf[i] = fv * fvmult * recQFX + (1.0f - recQFX) * sv;
+	}
+
+	int cutout = 48000 + RECBEEPLENMAX;
+	if (baserec.bufpos > cutout)
+	{
+		temprec = baserec;
+		memcpy(baserec.recbuf, temprec.recbuf + cutout, (temprec.bufpos - cutout) * sizeof(float));
+		ZeroMemory(baserec.recbuf + baserec.bufpos - cutout, cutout * sizeof(float));
+		baserec.bufpos -= cutout;
+	}
+	for (int i = 0; i < 48000; ++i)
+	{
+		baserec.recbuf[i] *= ((float)i) / 48000.0f;
+	}
+	for (int i = 0; i < 8192; ++i)
+	{
+		baserec.recbuf[i] = 0;
+	}
 }

@@ -1,3 +1,5 @@
 Requirements.
 
 Morning Portable Tape Recorder requires DirectX SDK and DirectX Runtime Redist packages to be installed.
+
+This package is easy to compile for Windows with the free compiler from Microsoft, Microsoft Visual Studio 18 2026 Community, which is what I currenly use with gratitude to Microsoft.

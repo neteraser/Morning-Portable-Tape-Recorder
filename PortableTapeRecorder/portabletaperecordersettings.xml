@@ -11,6 +11,10 @@
 	<switch id="normalize" image1="but_normalize.png" onMouseOver1="but_normalize_over.png" x="215" y="465"
 			image2="but_limit.png" onMouseOver2="but_limit_over.png"  />
 
+	<switch id="onoff" image1="but_on.png" onMouseOver1="but_on_over.png" x="380" y="12"
+		image2="but_off.png" onMouseOver2="but_off_over.png"  />
+
+
 	<button id="addriaa" image="but_addriaa.png" onMouseOver="but_addriaa_over.png" x="375" y="465"/>
 	<button id="undofx" image="but_undofx.png" onMouseOver="but_undofx_over.png" x="375" y="495"/>
 	<button id="settings" image="but_settings.png" onMouseOver="but_settings_over.png" x="500" y="25"/>
@@ -38,7 +42,7 @@
 	<switch id="remaster"
 	image1="but_remaster.png" onMouseOver1="but_remaster_over.png"
 	image2="but_remaster_playing.png" onMouseOver2="but_remaster_playing_over.png"
-	x="560" y="465"
+	x="550" y="465"
 	/>
 
 	<switch id="loop"
@@ -52,10 +56,14 @@
 			image2="but_exportmp3.png" onMouseOver2="but_exportmp3_over.png" 
 			x="215" y="495"/>
 
+	<regulator id="RQ" image="regulator.png" onPress="regulator_press.png" imagePtr="regulatorptr.png" x="650" y="465" diameter="60" defaultvalue="0.5" />
+
 	<track id="track" x="50" y="250" w="700" h="100" />
 
 	<meter id="meter" image="meter.png" x="850" y="100" w="36" h="320" offsetx="12" offsety="12"/>
 
 	<equalizer y="435" cropLeft="1" cropRight="0"/>
-	
+
+	<resources id="beep" sound="beepforme.wav" />
+
 </portabletaperecorder>
