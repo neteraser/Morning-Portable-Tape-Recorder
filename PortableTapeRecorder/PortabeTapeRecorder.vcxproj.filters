@@ -4,6 +4,9 @@
     <Filter Include="xml">
       <UniqueIdentifier>{9852bcca-d43d-42c2-9556-7524ff6712f9}</UniqueIdentifier>
     </Filter>
+    <Filter Include="precompiledresources">
+      <UniqueIdentifier>{1fe9a2fa-53c1-48bf-b5cd-6745d4576a03}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="xml\tinystr.CPP">
@@ -22,6 +25,11 @@
     <ClCompile Include="UpdatingResources.cpp" />
     <ClCompile Include="recorder.cpp" />
     <ClCompile Include="log.cpp" />
+    <ClCompile Include="resourcecompiler.cpp" />
+    <ClCompile Include="precompiledresources\resources.cpp">
+      <Filter>precompiledresources</Filter>
+    </ClCompile>
+    <ClCompile Include="audiolibwrapper.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="xml\tinystr.H">
@@ -35,6 +43,9 @@
     <ClInclude Include="AudioFile.h" />
     <ClInclude Include="recorder.h" />
     <ClInclude Include="log.h" />
+    <ClInclude Include="resourcecompiler.h" />
+    <ClInclude Include="main.h" />
+    <ClInclude Include="audiolibwrapper.h" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="icon1.ico" />

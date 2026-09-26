@@ -5,6 +5,10 @@ VisualStudioVersion = 18.9.12120.119
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "PortableTapeRecorder", "PortableTapeRecorder\PortabeTapeRecorder.vcxproj", "{82E08F9D-8EBC-4094-BA65-E84601471A82}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MorningHiddenAudioProcessing", "PortableTapeRecorder\MorningHiddenAudioProcessing\MorningHiddenAudioProcessing.vcxproj", "{253B7A89-71B8-4622-A5F2-11A603101C00}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "PortYTrack", "PortableTapeRecorder\PortYTrack\PortYTrack.vcxproj", "{0C95EA46-0BF4-4D7D-8300-B8F3ED1B90B3}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x86 = Debug|x86
@@ -15,6 +19,14 @@ Global
 		{82E08F9D-8EBC-4094-BA65-E84601471A82}.Debug|x86.Build.0 = Debug|Win32
 		{82E08F9D-8EBC-4094-BA65-E84601471A82}.Release|x86.ActiveCfg = Release|Win32
 		{82E08F9D-8EBC-4094-BA65-E84601471A82}.Release|x86.Build.0 = Release|Win32
+		{253B7A89-71B8-4622-A5F2-11A603101C00}.Debug|x86.ActiveCfg = Debug|Win32
+		{253B7A89-71B8-4622-A5F2-11A603101C00}.Debug|x86.Build.0 = Debug|Win32
+		{253B7A89-71B8-4622-A5F2-11A603101C00}.Release|x86.ActiveCfg = Release|Win32
+		{253B7A89-71B8-4622-A5F2-11A603101C00}.Release|x86.Build.0 = Release|Win32
+		{0C95EA46-0BF4-4D7D-8300-B8F3ED1B90B3}.Debug|x86.ActiveCfg = Debug|Win32
+		{0C95EA46-0BF4-4D7D-8300-B8F3ED1B90B3}.Debug|x86.Build.0 = Debug|Win32
+		{0C95EA46-0BF4-4D7D-8300-B8F3ED1B90B3}.Release|x86.ActiveCfg = Release|Win32
+		{0C95EA46-0BF4-4D7D-8300-B8F3ED1B90B3}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

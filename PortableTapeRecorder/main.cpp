@@ -6,8 +6,10 @@
 #include "log.h"
 
 #include "xml/tinyxml.h"
-#include "bass/bass.h"
+#include "AudioFile.h"
+//#include "bass/bass.h"
 //#include "bass/bassenc.h"
+#include "audiolibwrapper.h"
 
 #include "recorder.h"
 
@@ -18,6 +20,9 @@
 #include <vector>
 #include <map>
 #include <string>
+
+#include <thread>
+#include <chrono>
 
 HWND mainWnd;
 
@@ -32,8 +37,8 @@ typedef unsigned char		uint8;
 
 __int64 timeTicks = 0;
 int timeDt = 0;
-int timeFps = 0;
-const int timeMaximumFps = 65; // rounds to 60
+float timeFps = 0;
+const int timeMaximumFps = 30; // rounds to 60
 
 int windowWidth = 900;
 int windowHeight = 360;
@@ -63,14 +68,14 @@ bool InitInput(HINSTANCE instance, HWND context)
 
   di->CreateDevice(GUID_SysKeyboard, &keyboard, 0);
   if(!keyboard)
-    return false;
+	return false;
 
-  keyboard->SetDataFormat(&c_dfDIKeyboard);
-  keyboard->SetCooperativeLevel(context, DISCL_EXCLUSIVE);
-  keyboard->Acquire();
+	keyboard->SetDataFormat(&c_dfDIKeyboard);
+	keyboard->SetCooperativeLevel(context, DISCL_EXCLUSIVE);
+	keyboard->Acquire();
 
 	di->CreateDevice(GUID_SysMouse, &mouse, 0);
-	if(!mouse)
+	if (!mouse)
 		return false;
 
 	mouse->SetDataFormat(&c_dfDIMouse);
@@ -94,7 +99,7 @@ int cursorY = 0;
 char kbbuf[256];
 char kbbufPrev[256];
 
-DIMOUSESTATE mstate = {0};
+DIMOUSESTATE mstate = { 0 };
 bool bMouseClick = false;
 bool bMouseDoubleClick = false;
 
@@ -115,7 +120,7 @@ bool MouseDoubleClick()
 
 bool MouseInBox_WH(int x, int y, int w, int h)
 {
-	if ( mouseX > x && mouseX < x + w && mouseY > y && mouseY < y + h )
+	if (mouseX > x && mouseX < x + w && mouseY > y && mouseY < y + h)
 		return true;
 
 	return false;
@@ -148,20 +153,33 @@ int MouseMoveY()
 	return mstate.lY;
 }
 
-bool KeyPressed(int k) 
-{ 
-  if(!keyboard)
-    return false;
-  else
-    return kbbuf[k] & 0x80;
+bool KeyPressed(int k)
+{
+	if (!keyboard)
+		return false;
+	else
+		return kbbuf[k] & 0x80;
 }
+
+//static __int64 keyPressTime[256] = { 0 };
 
 bool KeyTrig(int k)
 {
-  if(!keyboard)
-    return false;
-  else
-    return ( kbbuf[k] & 0x80 ) && !( kbbufPrev[k] & 0x80 );
+	if (!keyboard)
+		return false;
+	else
+	{
+		bool kb = (kbbuf[k] & 0x80);
+		bool kbprev = (kbbufPrev[k] & 0x80);
+		if ( !kb && kbprev )
+		{
+			kbbuf[k] = 0;
+			kbbufPrev[k] = 0;
+//			keyPressTime[k] = timeTicks;
+			return true;
+		}
+	}
+	return false;
 }
 
 void UpdateInput(HWND context)
@@ -190,7 +208,12 @@ void UpdateInput(HWND context)
 	if( keyboard ) 
 	{
 		CopyMemory(kbbufPrev, kbbuf, 256);
-		keyboard->GetDeviceState(256, (void*)&kbbuf);
+		HRESULT hr = keyboard->GetDeviceState(256, (void*)&kbbuf);
+		if(FAILED(hr))
+		{
+			ZeroMemory(kbbuf, 256);
+			ZeroMemory(kbbufPrev, 256);
+		}
 	}
 	else
 	{
@@ -545,6 +568,23 @@ int DrawButton(int butPictures[2], int x, int y, bool clickOrDown = true, bool f
 	return result;
 }
 
+bool DrawChecker(int* checkerpics, int x, int y, bool state)
+{
+	bool result = false;
+
+	int pic = state ? 1 : 0;
+
+	if (MouseInBox_WH(x, y, pictures[checkerpics[pic]].width, pictures[checkerpics[pic]].height))
+	{
+		if (MouseClick())
+			result = true;
+	}
+
+	DrawPicture(checkerpics[pic], x, y);
+
+	return result;
+}
+
 /////////////////////////////
 
 Sound sounds[16];
@@ -554,11 +594,10 @@ int soundallocationsNumber = 0;
 
 int LoadSound(const char* filename)
 {
-	HSAMPLE mybass = BASS_SampleLoad(FALSE, filename, 0, 0, 1, BASS_SAMPLE_FLOAT | BASS_SAMPLE_MONO);
-	//HMUSIC mybass = BASS_MusicLoad(FALSE, filename, 0, 0, BASS_SAMPLE_FLOAT | BASS_SAMPLE_MONO | BASS_MUSIC_PRESCAN, 48000);
-	if (mybass == 0)
+	AudioFile<float> af;
+	if( ! af.load(filename) )
 	{
-		WriteToLog("BASS SampleLoad failed at loading a sound: %s, errorcode: %i", filename, BASS_ErrorGetCode());
+		WriteToLog("Audio File failed at loading a sound: %s", filename);
 
 		Sound sndret;
 		if (RetrieveSoundFromCode(filename, sndret))
@@ -574,16 +613,25 @@ int LoadSound(const char* filename)
 
 		return 0;
 	}
-	int lenb = BASS_ChannelGetLength(mybass, BASS_POS_BYTE);
-	if (lenb < 0)
-		return -1;
-	sounds[soundsNumber].snd = mybass;
-	sounds[soundsNumber].length = lenb / sizeof(float);
+	int lenb = af.getNumSamplesPerChannel();//BASS_ChannelGetLength(mybass, BASS_POS_BYTE);
+	if (lenb <= 0)
+	{
+
+		sounds[0].snd = 0;
+		sounds[0].length = 0;
+		sounds[0].sampledata = 0;
+
+		return 0;
+	}
+	sounds[soundsNumber].snd = 0;
+	sounds[soundsNumber].length = lenb;// / sizeof(float);
 	float* newalloc = (float*)malloc(sounds[soundsNumber].length * sizeof(float));
 	soundallocations[soundallocationsNumber++] = newalloc;
 	sounds[soundsNumber].sampledata = newalloc;//new float[sounds[soundsNumber].length];
 	//BASS_ChannelGetData(mybass, sounds[soundsNumber].sampledata, lenb | BASS_DATA_FLOAT);
-	BASS_SampleGetData(mybass, sounds[soundsNumber].sampledata);
+	//BASS_SampleGetData(mybass, sounds[soundsNumber].sampledata);
+	for (int i = 0; i < lenb; ++i)
+		sounds[soundsNumber].sampledata[i] = af.samples[0][i];
 
 	BakeSoundToCode(sounds[soundsNumber], filename);
 
@@ -795,9 +843,20 @@ int curRecDevNum = -1;
 std::vector<std::string> allDevNames;
 std::vector<std::string> allDevRecNames;
 
-
-void BassDeviceCheck()
+void RefreshDeviceChoice()
 {
+	curDevNum = -1;
+	curRecDevNum = -1;
+	devName = "";
+	devRecName = "";
+	allDevNames.clear();
+	allDevRecNames.clear();
+}
+
+void DeviceCheck()
+{
+	gaudio->EnumerateDevices();
+
 	//RecorderDeviceRetrieve(-1, -1);
 
 	//allDevNames.clear();
@@ -808,75 +867,25 @@ void BassDeviceCheck()
 
 	//allDevNames.push_back("No sound");
 
-	curDevNum = BASS_GetDevice();
+	curDevNum = gaudio->GetDevice();
 	if (curDevNum == -1)
 	{
-		WriteToLog("BASS GetDevice at BassDeviceCheck failed");
+		WriteToLog("Audio Library GetDevice at DeviceCheck failed");
 	}
-	curRecDevNum = BASS_RecordGetDevice();
+	curRecDevNum = gaudio->GetRecDevice();
 	if (curRecDevNum == -1)
 	{
-		WriteToLog("BASS GetRecordDevice at BassDeviceCheck failed");
+		WriteToLog("AudioLibrary GetRecDevice at DeviceCheck failed");
 	}
 
-	BOOL nextdevice = TRUE;
-	DWORD bassdevi = 0;
-	BASS_DEVICEINFO devinfo;
-	while (nextdevice) {
-		nextdevice = BASS_GetDeviceInfo(bassdevi, &devinfo);
-		if (!nextdevice)
-			break;
-		/*if (devinfo.flags & BASS_DEVICE_DEFAULT)
-		{
-			std::string newname(devinfo.name);
-			if (newname != devName)
-			{
-				static char msg[256];
-				sprintf(msg, "Play device check %s, %i", devinfo.name, bassdevi);
-				//MessageBox(mainWnd, msg, "Device change", MB_OK);
-				BASS_SetDevice(bassdevi);
-				devName = newname;
-			}
-		}*/
-		if (devinfo.flags & BASS_DEVICE_ENABLED)
-		{
-			std::string newname(devinfo.name);
-			allDevNames.push_back(newname);
-		}
-		bassdevi += 1;
-	}
-
-	bassdevi = 0;
-	nextdevice = TRUE;
-
-	while (nextdevice) {
-		nextdevice = BASS_RecordGetDeviceInfo(bassdevi, &devinfo);
-		if (!nextdevice)
-			break;
-		/*if (devinfo.flags & BASS_DEVICE_DEFAULT)
-		{
-			std::string newname(devinfo.name);
-			if (newname != devRecName)
-			{
-				static char msg[256];
-				sprintf(msg, "Rec device check %s, %i", devinfo.name, bassdevi);
-				//MessageBox(mainWnd, msg, "Device change", MB_OK);
-				BASS_RecordSetDevice(bassdevi);
-				devRecName = newname;
-			}
-		}*/
-		if (devinfo.flags & BASS_DEVICE_ENABLED)
-		{
-			std::string newname(devinfo.name);
-			allDevRecNames.push_back(newname);
-		}
-		bassdevi += 1;
-	}
+	allDevNames = gaudio->devices;
+	allDevRecNames = gaudio->recDevices;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
 int tapeSlowdownSamples = 2;
+int tapeSlowdownMode2Samples = 10;
 int adcIntMaxNatural = 32500;
 
 	//////////////////////////////////////////////////////////////////
@@ -898,8 +907,11 @@ remasterX = 460, remasterY = 460,
 applyX = 680, applyY = 18,
 settingsX = 350, settingsY = 25,
 loopX = 180, loopY = 480,
-onoffX = 400, onoffY=10,
-regulatorX=600, regulatorY=465, regulatorDiameter=60;
+onoffX = 400, onoffY = 10,
+regulatorX = 600, regulatorY = 465, regulatorDiameter = 60,
+waveformcolorX = 25, waveformcolorY = 110,
+bassX = 30, bassY = 480, portyX = 210, portyY = 480,
+delayslowX = 480, delayslowY = 480, delayfastX = 510, delayfastY = 480;
 
 double regulatorDefaultValue = 0.5;
 
@@ -928,7 +940,12 @@ loopOnImage, loopOnOverImage,
 loopOffImage, loopOffOverImage,
 onImage, onOverImage,
 offImage, offOverImage,
-regulatorImage, regulatorPtrImage, regulatorPressImage;
+regulatorImage, regulatorPtrImage, regulatorPressImage,
+bassLibImage, bassLibImageOn,
+portyLibImage, portyLibImageOn,
+delaySlowImage, delaySlowImageOn,
+delayFastImage, delayFastImageOn;
+
 
 std::string exportartist = "Tape Recorder";
 
@@ -963,6 +980,10 @@ int offimg[2];
 int regulatorimg, regulatorptrimg, regulatorpressimg;
 int arrowup;
 int arrowdown;
+int basslib[2];
+int portylib[2];
+int delayslow[2];
+int delayfast[2];
 int px1;
 
 
@@ -992,7 +1013,7 @@ void DrawMainScreen()
 {
 	if (DrawButton(remastermode ? remaster : remasterPlaying, remasterX, remasterY))
 	{
-		if (remastermode)
+		if (remastermode != 0)
 		{
 			StartRemaster();
 			remastermode = 0;
@@ -1003,6 +1024,7 @@ void DrawMainScreen()
 			remastermode = 1;
 		}
 	}
+
 
 	///////////////////////////////////////////////////////////
 
@@ -1020,7 +1042,7 @@ void DrawMainScreen()
 		if (zoomMode >= 3)
 			zoomMode = 0;
 	}
-			
+
 	bool canclick = true;
 
 	if (IsRecorderPlaying())
@@ -1028,10 +1050,10 @@ void DrawMainScreen()
 		canclick = false;
 		SetAlpha(128);
 	}
-			
-	if ( DrawButton(recOrStop ? rec : stop, recX, recY ) && canclick)
+
+	if (DrawButton(recOrStop ? rec : stop, recX, recY) && canclick)
 	{
-		if(recOrStop)
+		if (recOrStop)
 		{
 			//BASS_ChannelPlay(songs[n].song, FALSE);
 			StartRec(baserec);
@@ -1054,7 +1076,7 @@ void DrawMainScreen()
 		canclick = false;
 	}
 
-	if (DrawButton(playOrStop ? play : stopplay, playX, playY) && canclick )
+	if (DrawButton(playOrStop ? play : stopplay, playX, playY) && canclick)
 	{
 		if (playOrStop)
 		{
@@ -1072,7 +1094,7 @@ void DrawMainScreen()
 	ResetColor();
 
 	canclick = true;
-	
+
 	if (!RecorderCanDoFX())
 	{
 		SetAlpha(128);
@@ -1113,7 +1135,7 @@ void DrawMainScreen()
 
 	canclick = true;
 
-	if ( ! IsRecorderIdling() )
+	if (!IsRecorderIdling())
 	{
 		canclick = false;
 		SetAlpha(128);
@@ -1133,34 +1155,32 @@ void DrawMainScreen()
 	{
 		if (IsRecorderWriting())
 			StopRec(baserec);
-		else
 		if (IsRecorderPlaying())
 			StopPlayingRec();
-		else
 		if (IsRecorderRemastering())
 			StopRemaster();
 
 		spFrame = 2;
 	}
 
-	if ( DrawButton(quit, quitX, quitY) )
+	if (DrawButton(quit, quitX, quitY))
 	{
 		PostQuitMessage(0);
 	}
 
-	if( DrawButton(hide, hideX, hideY) )
+	if (DrawButton(hide, hideX, hideY))
 	{
 		Minimize();
 		//ShowWindow(mainWnd, SW_MINIMIZE );
 	}
 
-	if(noButtonIsOver)
+	if (noButtonIsOver)
 	{
-		SetCursor(LoadCursor(0,IDC_ARROW));
+		SetCursor(LoadCursor(0, IDC_ARROW));
 	}
 	else
 	{
-		SetCursor(LoadCursor(0,IDC_HAND));
+		SetCursor(LoadCursor(0, IDC_HAND));
 	}
 
 	/*
@@ -1169,24 +1189,33 @@ void DrawMainScreen()
 		RecorderDeviceRetrieve();
 	}*/
 
-	if ( (KeyTrig(DIK_R) || KeyTrig(DIK_SPACE) )  && IsRecorderWriting())
+	if (IsRecorderIdling())
 	{
-		StopRec(baserec);
+		if (KeyTrig(DIK_R))
+		{
+			StartRec(baserec);
+		}
+		else
+		if (KeyTrig(DIK_SPACE))
+		{
+			PlayRec();
+		}
 	}
 	else
-	if (KeyTrig(DIK_R) && IsRecorderIdling())
 	{
-		StartRec(baserec);
-	}
-	else
-	if (KeyTrig(DIK_SPACE) && IsRecorderPlaying())
-	{
-		StopPlayingRec();
-	}
-	else
-	if (KeyTrig(DIK_SPACE) && IsRecorderIdling())
-	{
-		PlayRec();
+		if (KeyTrig(DIK_R) && IsRecorderWriting())
+		{
+			StopRec(baserec);
+		}
+		
+		if (KeyTrig(DIK_SPACE) )
+		{
+			if (IsRecorderPlaying())
+				StopPlayingRec();
+			else
+				if (IsRecorderWriting())
+					StopRec(baserec);
+		}
 	}
 
 	DWORD result = 0;//BASS_ChannelGetData( songs[n].song, spectrum, bassSpectrumLength);
@@ -1385,16 +1414,57 @@ void DrawMainScreen()
 					startpos = 0;
 			}
 			else
-				if (IsRecorderIdling())
-				{
-					startpos = baserec.peakpos - (trackWidth / 2);
-					if (startpos < 0)
-						startpos = 0;
-					curpos = trackWidth / 2;
-				}
-				else
-					curpos = 0;
+			if (IsRecorderIdling())
+			{
+				startpos = baserec.peakpos - (trackWidth / 2);
+				if (startpos < 0)
+					startpos = 0;
+				curpos = trackWidth / 2;
+			}
+			else
+			{
+				curpos = 0;
+			}
 		}
+
+		static int clrwav[3][3] = { {0, 255, 0 }, {255, 255, 0}, {0, 255, 255} };
+		static int currentclr = 0;
+
+		//				SetColor(0, 0, 0, 255);
+		for (int i = 0; i < 3; ++i)
+		{
+			int clrwavalpha = 255;
+
+			if (MouseInBox_WH(waveformcolorX + i * 25, waveformcolorY - 2, 14, 14))
+			{
+				clrwavalpha = 128;
+				if (MouseClick())
+				{
+					currentclr = i;
+					RecorderSetColoration(currentclr);
+				}
+			}
+
+			if (i == currentclr)
+			{
+				SetColor(255, 255, 255, 255);
+				DrawPicture(px1, waveformcolorX + i * 25 - 1, waveformcolorY - 2, 16, 16);
+			}
+			else
+			{
+				SetColor(128, 128, 128, 255);
+				DrawPicture(px1, waveformcolorX + i * 25, waveformcolorY - 1, 14, 14);
+			}
+
+			SetColor(clrwav[i][0], clrwav[i][1], clrwav[i][2], clrwavalpha);
+			DrawPicture(px1, waveformcolorX + i * 25 + 1, waveformcolorY, 12, 12);
+		}
+
+		SetColor(clrwav[currentclr][0], clrwav[currentclr][1], clrwav[currentclr][2], 255);
+
+		DrawPicture(px1, trackX - 1, trackY, trackWidth + 2, 1);
+		DrawPicture(px1, trackX - 11, trackY - 5, 10, 10);
+		DrawPicture(px1, trackX + trackWidth + 2, trackY - 5, 10, 10);
 
 		for (int i = 0; i < trackWidth - 1; ++i)
 		{
@@ -1406,19 +1476,12 @@ void DrawMainScreen()
 			//float sampledb = VolumeToDb(samplevalue);
 			//float sampleoff = 50 - sampledb;
 
-//				SetColor(0, 0, 0, 255);
-			SetColor(0, 255, 0, 255);
-
-			DrawPicture(px1, trackX - 1, trackY, trackWidth + 2, 1);
-			DrawPicture(px1, trackX - 11, trackY - 5, 10, 10);
-			DrawPicture(px1, trackX + trackWidth + 2, trackY - 5, 10, 10);
-
 			//float sampledb = 100 + VolumeToDb (vplus);
 			float sampledb = vplus * trackHeight;
 
 			DrawPicture(px1, trackX + i, trackY - sampledb, 1, sampledb);
 
-			sampledb = abs(vminus) * trackHeight;
+			sampledb = fabs(vminus) * trackHeight;
 			//sampledb = 100 + VolumeToDb(abs(vminus));
 
 			DrawPicture(px1, trackX + i, trackY, 1, sampledb);
@@ -1570,7 +1633,7 @@ void DrawSettingsScreen()
 {
 	//RecorderDeviceRetrieve();
 
-	BassDeviceCheck();
+	DeviceCheck();
 
 	DrawPicture(settingsback, 0, 0);
 
@@ -1759,8 +1822,8 @@ void DrawSettingsScreen()
 	if (devicechanged)
 	{
 
-		BASS_SetDevice(devNum);
-		BASS_RecordSetDevice(recDevNum);
+		gaudio->SetDevice(devNum);
+		gaudio->SetRecDevice(recDevNum);
 
 		for(int i=0; i < 16; ++i)
 			RecorderDeviceRetrieve(devNum, recDevNum);
@@ -1769,6 +1832,42 @@ void DrawSettingsScreen()
 		curRecDevNum = recDevNum;
 		//BASS_SetDevice(devNum);
 	}
+
+	static int librarynumber = 0;
+
+	if (DrawChecker(basslib, bassX, bassY, librarynumber == 1))
+	{
+		RefreshDeviceChoice();
+		librarynumber = 1;
+		SwitchAudioLibrary(librarynumber, mainWnd, RECBUFFERDELAYMS);
+		RecorderSetCallbacks();
+	}
+
+	if (DrawChecker(portylib, portyX, portyY, librarynumber == 0))
+	{
+		RefreshDeviceChoice();
+		librarynumber = 0;
+		SwitchAudioLibrary(librarynumber, mainWnd, RECBUFFERDELAYMS);
+		RecorderSetCallbacks();
+	}
+
+	/////////////////////
+
+	static int delaymode = 0;
+
+	if (DrawChecker(delayslow, delayslowX, delayslowY, delaymode == 1))
+	{
+		delaymode = 1;
+		RecorderSetStretchSamples(tapeSlowdownSamples);
+	}
+
+	if (DrawChecker(delayfast, delayfastX, delayfastY, delaymode == 0))
+	{
+		delaymode = 0;
+		RecorderSetStretchSamples(tapeSlowdownMode2Samples);
+	}
+
+	////////////////////////
 
 	if (DrawButton(applyimg, applyX, applyY))
 	{
@@ -1898,9 +1997,10 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 	allDevRecNames.reserve(16);
 
 	// init bass with default device, at 44.1khz, default flags, main window, default class
-	if (! BASS_Init(-1, 48000, BASS_DEVICE_MONO, mainWnd, 0))
+	//if (! BASS_Init(-1, 48000, BASS_DEVICE_MONO, mainWnd, 0))
+	if( !gaudio->Init(mainWnd, RECBUFFERDELAYMS) )
 	{
-		MessageBox(0, "BASS failed!", "Sorry!", MB_ICONERROR | MB_OK);
+		MessageBox(0, "Audio library failed!", "Sorry!", MB_ICONERROR | MB_OK);
 		return -1;
 	}
 
@@ -1929,10 +2029,15 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 		if (strcmp(id, "adcsetup") == 0)
 		{
 			temp->Attribute("tapeSlowdownSamples", &tapeSlowdownSamples);
+			temp->Attribute("tapeSlowdownMode2Samples", &tapeSlowdownMode2Samples);
 			if (tapeSlowdownSamples < 0)
 				tapeSlowdownSamples = 0;
 			if (tapeSlowdownSamples > 10)
 				tapeSlowdownSamples = 10;
+			if (tapeSlowdownMode2Samples < 0)
+				tapeSlowdownMode2Samples = 0;
+			if (tapeSlowdownMode2Samples > 10)
+				tapeSlowdownMode2Samples = 10;
 			temp->Attribute("adcIntMaxNatural", &adcIntMaxNatural);
 			if (adcIntMaxNatural == 0)
 				adcIntMaxNatural = 32500;
@@ -1940,6 +2045,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 
 		temp = temp->NextSiblingElement("settings");
 	}
+
+	RecorderSetStretchSamples(tapeSlowdownSamples);
 
 	temp = elem->FirstChildElement("regulator");
 
@@ -2180,6 +2287,56 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 		temp = temp->NextSiblingElement("resources");
 	}
 
+	///////////////////////////////////////////////////////
+// 
+	temp = elem->FirstChildElement("checker");
+
+	while (temp)
+	{
+		const char* id = temp->Attribute("id");
+
+		if (!id)
+			break;
+
+		if (strcmp(id, "basslib") == 0)
+		{
+			bassLibImage = temp->Attribute("image1");
+			bassLibImageOn = temp->Attribute("image2");
+			temp->Attribute("x", &bassX);
+			temp->Attribute("y", &bassY);
+		}
+
+		if (strcmp(id, "portytracklib") == 0)
+		{
+			portyLibImage = temp->Attribute("image1");
+			portyLibImageOn = temp->Attribute("image2");
+			temp->Attribute("x", &portyX);
+			temp->Attribute("y", &portyY);
+		}
+
+
+		if (strcmp(id, "delayslow") == 0)
+		{
+			delaySlowImage = temp->Attribute("image1");
+			delaySlowImageOn = temp->Attribute("image2");
+			temp->Attribute("x", &delayslowX);
+			temp->Attribute("y", &delayslowY);
+		}
+
+		if (strcmp(id, "delayfast") == 0)
+		{
+			delayFastImage = temp->Attribute("image1");
+			delayFastImageOn = temp->Attribute("image2");
+			temp->Attribute("x", &delayfastX);
+			temp->Attribute("y", &delayfastY);
+		}
+
+
+
+		temp = temp->NextSiblingElement("checker");
+	}
+
+
 	//////////////////////////////////////////////////////////////
 
 	temp = elem->FirstChildElement("icon");
@@ -2321,6 +2478,19 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 	arrowup = LoadPicture("images/arrowup.png");
 	arrowdown = LoadPicture("images/arrowdown.png");
 
+	basslib[0] = LoadPicture("images/" + bassLibImage);
+	basslib[1] = LoadPicture("images/" + bassLibImageOn);
+
+	portylib[0] = LoadPicture("images/" + portyLibImage);
+	portylib[1] = LoadPicture("images/" + portyLibImageOn);
+
+	delayslow[0] = LoadPicture("images/" + delaySlowImage);
+	delayslow[1] = LoadPicture("images/" + delaySlowImageOn);
+
+	delayfast[0] = LoadPicture("images/" + delayFastImage);
+	delayfast[1] = LoadPicture("images/" + delayFastImageOn);
+
+
 	px1 = LoadPicture("images/1px.png");
 
 	///////////////////////////////////////////////////////////////
@@ -2363,27 +2533,27 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 
 	///////////////////////////////////////////////////////////////
 
-	if (!BASS_RecordInit(-1))
+	/*if (!BASS_RecordInit(-1))
 	{
 		MessageBox(0, "Recording failed!", "Sorry!", MB_ICONERROR | MB_OK);
 		return -1;
-	}
+	}*/
 
 	/*if (!BASS_SetConfig(BASS_CONFIG_BUFFER, 250))
 	{
 		WriteToLog("BASS SetConfig at app init failed.");
 	}*/
 	
-	if (!BASS_SetConfig(BASS_CONFIG_REC_BUFFER, RECBUFFERDELAYMS))
+	/*if (!BASS_SetConfig(BASS_CONFIG_REC_BUFFER, RECBUFFERDELAYMS))
 	{
 		WriteToLog("BASS SetConfig at app init failed.");
-	}
+	}*/
 
 	InitRec(baserec);
 
 	////////////////////////////////////////////////////////////////
 
-	BassDeviceCheck();
+	DeviceCheck();
 
 	//static DWORD bassdevice = BASS_GetDevice();
 	
@@ -2502,6 +2672,10 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 				mouseDownTime = 0;
 			}
 
+#ifdef DEBUGSCREEN
+			DrawText(font, 55, 55, 155, 80, D3DCOLOR_RGBA(255, 255, 255, 255), "FPS: %0.3f sec", timeFps);
+#endif 
+
 			SetBlendNormal();
 			ResetColor();
 
@@ -2518,11 +2692,11 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 				PostQuitMessage(0);
 			}
 
-			DWORD error = BASS_ErrorGetCode();
+			DWORD error = gaudio->GetError();
 
-			if (error != BASS_OK)
+			if (error != 0)
 			{
-				WriteToLog("BASS error at the cycle: %i", error);
+				WriteToLog("Audio Library error at the cycle: %i", error);
 
 				if (!RecorderDeviceRetrieve(curDevNum, curRecDevNum))
 				{
@@ -2538,33 +2712,41 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 				}
 			}
 
-			// calc time
-
-			float deltaInSeconds;
-
-			timeDt = timeGetTime() - time0;
-			deltaInSeconds = (float) timeDt / 1000.0f; 
-			timeFps = (int)(1.0f / deltaInSeconds);
-
-			RecorderUpdate(deltaInSeconds);
-
 			//
 			WriteRec();
 
-      float sleep = ( 1.0f / timeMaximumFps ) - deltaInSeconds;
+			std::this_thread::sleep_for(std::chrono::microseconds(6));
 
-      if(sleep > 0.0f)
-			{
-        Sleep( sleep * 1000.0f);
-			}
+			// calc time
+
+			float deltaInSeconds;
+			
+
+			timeDt = timeGetTime() - time0;
+			deltaInSeconds = (float) timeDt / 1000.0f; 
+			timeFps = (1.0f / deltaInSeconds);
+
+		  float sleep = ( 1.0f / timeMaximumFps ) - deltaInSeconds;
+
+			 if(sleep > 0.0f )//&& IsRecorderIdling())
+			 {
+				Sleep( sleep * 1000.0f);			
+			 }
+			 /*else
+			 {
+				 //int mcssleep = (int)(sleep * 1000000.0f);
+				 std::this_thread::sleep_for(std::chrono::microseconds(2500));
+			 }*/
 
 			// recalc after sleep
 
 			timeDt = timeGetTime() - time0;
 			deltaInSeconds = (float) timeDt / 1000.0f; 
-			timeFps = (int)(1.0f / deltaInSeconds);
+			timeFps = (1.0f / deltaInSeconds);
 			
 			timeTicks += timeDt;
+
+			RecorderUpdate(deltaInSeconds);
 		}
 	}
 
@@ -2577,9 +2759,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 
 	FreeSounds();
 
-	BASS_RecordFree();
-
-	BASS_Free();
+	gaudio->Free();
 
 	DestroyWindow(mainWnd);
 

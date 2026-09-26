@@ -1,7 +1,7 @@
 <?xml version="1.0" ?>
 <portabletaperecorder w="900" h="540">
 
-	<settings id="adcsetup" tapeSlowdownSamples="2" adcIntMaxNatural="32500" />
+	<settings id="adcsetup" tapeSlowdownSamples="2" tapeSlowdownMode2Samples= "10" adcIntMaxNatural="32500" />
 	
 	<settings id="exporttags" artist="yworkshopru" />
 
@@ -65,5 +65,13 @@
 	<equalizer y="435" cropLeft="1" cropRight="0"/>
 
 	<resources id="beep" sound="beepforme.wav" />
+
+	<checker id="basslib" image1="but_lib_bass.png" image2="but_lib_bass_on.png" x="60" y="480"/>
+
+	<checker id="portytracklib" image1="but_lib_portytrack.png" image2="but_lib_portytrack_on.png" x="240" y="480"/>
+
+	<checker id="delayfast" image1="but_delay_fast.png" image2="but_delay_fast_on.png" x="580" y="480"/>
+
+	<checker id="delayslow" image1="but_delay_slow.png" image2="but_delay_slow_on.png" x="710" y="480"/>
 
 </portabletaperecorder>

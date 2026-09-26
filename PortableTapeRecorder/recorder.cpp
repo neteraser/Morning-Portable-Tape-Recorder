@@ -13,6 +13,8 @@
 #include <immintrin.h>
 #include <direct.h>
 
+#include "MorningHiddenAudioProcessing/MorningHidden.h"
+
 Record baserec;
 Record streamrec;
 
@@ -23,7 +25,7 @@ float recbeepregion[96000];
 //int recOrStop = 1;
 //int playOrStop = 1;
 
-extern int tapeSlowdownSamples;
+int stretchSamples = 2;
 extern int adcIntMaxNatural;
 
 std::string gfilename;
@@ -87,15 +89,6 @@ extern std::string exportartist;
 
 bool playloop = false;
 
-float CatmullRom1D(float t, float p0, float p1, float p2, float p3)
-{
-	float t2 = t * t;
-	float t3 = t2 * t;
-	return (0.5f * ((2.0f * p1) + (-p0 + p2) * t +
-		(2.0f * p0 - 5.0f * p1 + 4 * p2 - p3) * t2 +
-		(-p0 + 3.0f * p1 - 3.0f * p2 + p3) * t3));
-}
-
 int recOrPlay= 0;
 
 bool noRecDevice = false;
@@ -107,7 +100,9 @@ float masterDevicePlayTime = 0.0f;
 
 float recFadeInTime = 2.5f;
 
-float FixDeviceBit(float in)
+static int recCLRFX = 0;
+
+__inline float FixDeviceBit(float in)
 {
 	float out = -in;
 	out *= (float)(adcIntMaxNatural) / 32767.0f;
@@ -115,13 +110,13 @@ float FixDeviceBit(float in)
 	{
 		out *= 32768.0f / 32767.0f;
 	}
+	BEGINHIDDENCODE(HiddenProcessSampleByColor)
+		out = HiddenProcessSampleByColor(out, recQFX, recCLRFX);
+	ENDHIDDENCODE
 	return -out;
 }
 
-BOOL CALLBACK record_proc(HRECORD handle,
-	const void* buffer,
-	DWORD length,
-	void* user)
+bool RecorderPushData(const float* buffer, int length)
 {
 	_m_prefetchrs(baserec.recbuf + baserec.bufpos);
 	_m_prefetchrs(buffer);
@@ -134,7 +129,7 @@ BOOL CALLBACK record_proc(HRECORD handle,
 
 	if (prec->breakrec == TRUE)
 	{
-		return FALSE;
+		return false;
 	}
 
 //	if (timeGetTime() - prec->lastreccallback_time > 1000)
@@ -144,13 +139,13 @@ BOOL CALLBACK record_proc(HRECORD handle,
 
 	if (!noRecDevice)
 	{
-		length = length / sizeof(float);
+		//length = length / sizeof(float);
 
-		/*if (length > 8192)
+		if (length > 8192)
 		{
 			WriteToLog("Rec buffer overflow, clamping the callback's length.");
 			length = 8192;
-		}*/
+		}
 
 		int lenrest = length % 8;
 		int len8 = length - lenrest;
@@ -223,7 +218,7 @@ BOOL CALLBACK record_proc(HRECORD handle,
 			if (prec->bufpos >= RECBUFSTANDARDSIZE - 1)
 			{
 				prec->breakrec = TRUE;
-				return FALSE;
+				return false;
 			}
 		}
 		for (int i = len8; i < length; ++i)
@@ -243,12 +238,12 @@ BOOL CALLBACK record_proc(HRECORD handle,
 			if (prec->bufpos >= RECBUFSTANDARDSIZE - 1)
 			{
 				prec->breakrec = TRUE;
-				return FALSE;
+				return false;
 			}
 		}
 	}
 
-	return TRUE;
+	return true;
 }
 
 float CalcSplineInterpolation(float v0, float v1, float v2, float pos)
@@ -268,8 +263,8 @@ void RecProcess256Samples()
 	_m_prefetchrs(baserec.rectempbuf);
 
 	int recslowdownsamples = RECSLOWDOWNSAMPLES;
-	if (tapeSlowdownSamples > 0)
-		recslowdownsamples = 256 + tapeSlowdownSamples;
+	if (stretchSamples > 0)
+		recslowdownsamples = 256 + stretchSamples;
 
 	//disable
 	//recslowdownsamples = 256;
@@ -321,6 +316,11 @@ void RecProcess256Samples()
 	}
 }
 
+void RecorderSetCallbacks()
+{
+	gaudio->SetCallbacks(RecorderPushData, RecorderPullData);
+}
+
 void InitRec(Record& rec)
 {
 	//InitFolders();
@@ -337,6 +337,8 @@ void InitRec(Record& rec)
 	ZeroMemory(rec.safebuf_before, sizeof(rec.safebuf_before));
 	ZeroMemory(rec.recbuf, sizeof(rec.recbuf));
 	ZeroMemory(rec.safebuf_after, sizeof(rec.safebuf_after));
+
+	RecorderSetCallbacks();
 }
 
 int recOrStop = 1;
@@ -460,7 +462,7 @@ void StartRec(Record& rec) {
 	rec.breakrec = FALSE;
 	rec.peak = 0.0f;
 	rec.peakpos = 0;
-	rec.lastreccallback_time = 0;
+	rec.lastreccallback_time = timeGetTime();
 
 	PrepareInverseRIAAFilter(baseinvriaafilter, 68, 250, 2000);
 
@@ -469,30 +471,8 @@ void StartRec(Record& rec) {
 
 	noRecDevice = false;
 
-	baserec.record = BASS_RecordStart(RECSAMPLERATE, 1, BASS_SAMPLE_FLOAT, record_proc, &baserec);
+	gaudio->Rec();
 
-	if (baserec.record == 0)
-	{
-		WriteToLog("BASS RecordStart at StartRec failed");
-	}
-
-	//BASS_ChannelIsActive()
-
-	
-	BASS_RecordSetInput(-1, BASS_INPUT_ON, 1.0);
-	
-	/**/
-
-	if (BASS_ChannelPlay(baserec.record, TRUE) != TRUE)
-	{
-		WriteToLog("BASS ChannelStart at StartRec failed");
-	}
-
-	DWORD error = BASS_ErrorGetCode();
-	if (error != BASS_OK)
-	{
-		WriteToLog("BASS error at StartRec, error code: %i", error);
-	}
 	recOrPlay = -1;
 }
 
@@ -666,6 +646,9 @@ void ReadRec()
 	fclose(baserec.tape);
 	if(baserec.tapepolarized != 0)
 		fclose(baserec.tapepolarized);
+
+
+	RecorderReRender();
 }
 
 void StopRec(Record& rec)
@@ -688,15 +671,7 @@ void StopRec(Record& rec)
 	fclose(rec.tape);
 	fclose(rec.tapepolarized);
 
-	if (BASS_ChannelStop(rec.record) != TRUE)
-	{
-		WriteToLog("BASS ChannelStop at StopRec failed");
-	}
-	/*if (BASS_StreamFree(rec.record) != TRUE)
-	{
-		WriteToLog("BASS StreamFree at StopRec failed");
-	}*/
-	rec.record = 0;
+	gaudio->Stop();
 
 	//BASS_StreamFree(rec.record);
 
@@ -723,28 +698,20 @@ void StopPlayingRec()
 	streamrec.playpos = 0;
 	baserec.unipos = 0;
 	streamrec.breakplay = TRUE;
-	if ( BASS_ChannelStop(streamrec.stream) != TRUE )
-	{
-		WriteToLog("BASS ChannelStop at StopPlayingRec failed");
-	}
-	if (BASS_StreamFree(streamrec.stream) != TRUE)
-	{
-		WriteToLog("BASS StreamFree at StopPlayingRec failed");
-	}
+
+	gaudio->Stop();
+
 	streamrec.stream = 0;
 }
 
-DWORD CALLBACK play_proc(HSTREAM handle,
-	void* buffer,
-	DWORD length,
-	void* user)
+bool RecorderPullData(float* buffer, int length)
 {
 	if(remastermode != 0)
 		recOrPlay = 1;
 
 	if (streamrec.breakplay == TRUE)
 	{
-		return BASS_STREAMPROC_END;
+		return false;
 	}
 
 	streamrec.playcallback_dt = timeGetTime() - streamrec.lastplaycallback_time;
@@ -757,14 +724,13 @@ DWORD CALLBACK play_proc(HSTREAM handle,
 	{
 		//fmult = 0.66f;
 		recspeedupsamples = RECSLOWDOWNSAMPLES;
-		if (tapeSlowdownSamples > 0)
-			recspeedupsamples = 256 + tapeSlowdownSamples;
+		if (stretchSamples > 0)
+			recspeedupsamples = 256 + stretchSamples;
 	}
 
 	float* fbuf = (float*)buffer;
-	unsigned ilength = length / sizeof(float);
 
-	for (int i = 0; i < ilength; ++i)
+	for (int i = 0; i < length; ++i)
 	{
 		float fi = (float)i * (float)(recspeedupsamples) / 256.0f;
 		int src_idx = (int)roundf(fi);
@@ -801,12 +767,12 @@ DWORD CALLBACK play_proc(HSTREAM handle,
 			else
 			{
 				streamrec.breakplay = TRUE;
-				return BASS_STREAMPROC_END;
+				return false;
 			}
 		}
 	}
-	streamrec.playpos += (int)roundf((float)ilength * (float)recspeedupsamples / 256.0f);
-	return length;
+	streamrec.playpos += (int)roundf((float)length * (float)recspeedupsamples / 256.0f);
+	return true;
 }
 
 void PlayRec()
@@ -822,17 +788,10 @@ void PlayRec()
 	streamrec.breakplay = FALSE;
 	streamrec.playpos = 0;
 	baserec.unipos = 0;
-	streamrec.lastplaycallback_time = 0;
+	streamrec.lastplaycallback_time = timeGetTime();
 	streamrec.playcallback_dt = 4800;
-	streamrec.stream = BASS_StreamCreate(RECSAMPLERATE, 1, BASS_SAMPLE_FLOAT, play_proc, 0);
-	if (streamrec.stream == 0)
-	{
-		WriteToLog("BASS StreamCreate at PlayRec failed");
-	}
-	if (BASS_ChannelPlay(streamrec.stream, TRUE) != TRUE)
-	{
-		WriteToLog("BASS ChannelPlay at PlayRec failed");
-	}
+
+	gaudio->Play();
 }
 
 
@@ -1229,7 +1188,8 @@ void RecorderUpdate(float dt)
 	{
 		if (baserec.lastreccallback_time != 0)
 		{
-			if (timeGetTime() - baserec.lastreccallback_time > 2000)
+			/*
+			if (timeGetTime() - baserec.lastreccallback_time > 6000)
 			{
 				MessageBox(mainWnd, "If your recording device breaks the stream, we can't fix it because we're using a little simpler libraries.", "Notice", MB_OK);
 				if (remastermode == 0)
@@ -1240,11 +1200,11 @@ void RecorderUpdate(float dt)
 				{
 					StopRec(baserec);
 				}
-			}
+			}*/
 		}
 	}
 
-	if (remastermode == 0)
+	if (IsRecorderRemastering())
 	{
 		//remastering fade in and fade out
 		if(baserec.bufpos < 48000)
@@ -1378,7 +1338,6 @@ void StartRemaster()
 
 	remastermode = 0;
 
-
 	// play streamrec
 	streamrec = baserec;
 
@@ -1393,27 +1352,18 @@ void StartRemaster()
 	ZeroMemory(streamrec.recbuf + baserec.bufpos + 48000 + RECBEEPLENMAX, 48000 * sizeof(float));
 	streamrec.bufpos += 96000 + RECBEEPLENMAX;
 
+	// 
+	//streamrec.bufpos += 48000 * 32;
+
 	ZeroMemory(baserec.recbuf, RECBUFSTANDARDSIZE * sizeof(float));
 	
 	streamrec.breakplay = FALSE;
 	streamrec.playpos = 0;
 	baserec.unipos = 0;
 
-	streamrec.lastplaycallback_time = 0;
+	streamrec.lastplaycallback_time = timeGetTime();
 	streamrec.playcallback_dt = 4800;
 	
-	streamrec.stream = BASS_StreamCreate(RECSAMPLERATE, 1, BASS_SAMPLE_FLOAT, play_proc, 0);
-
-	if ( streamrec.stream == 0)
-	{
-		WriteToLog("BASS StreamCreate at StartRemaster failed");
-	}
-
-	if (BASS_ChannelPlay(streamrec.stream, TRUE) != TRUE)
-	{
-		WriteToLog("BASS ChannelPlay at StartRemaster failed");
-	}
-
 	//////////////////////////
 	// rec baserec
 	
@@ -1424,7 +1374,7 @@ void StartRemaster()
 	baserec.breakrec = FALSE;
 	baserec.peak = 0.0f;
 	baserec.peakpos = 0;
-	baserec.lastreccallback_time = 0;
+	baserec.lastreccallback_time = timeGetTime();
 
 	PrepareInverseRIAAFilter(baseinvriaafilter, 68, 250, 2000);
 
@@ -1436,19 +1386,8 @@ void StartRemaster()
 
 	//BASS_RecordInit(-1);
 
-	baserec.record = BASS_RecordStart(RECSAMPLERATE, 1, BASS_SAMPLE_FLOAT, record_proc, & baserec);
 
-	if (baserec.record == 0)
-	{
-		WriteToLog("BASS RecordStart at StartRemaster failed");
-	}
-
-	//BASS_RecordSetInput(-1, BASS_INPUT_ON, 1.0);
-
-	if (BASS_ChannelPlay(baserec.record, TRUE) != TRUE)
-	{
-		WriteToLog("BASS ChannelPlay at StartRemaster failed");
-	}
+	gaudio->Remaster();
 
 	////////////////////
 
@@ -1468,15 +1407,7 @@ void StopRemaster()
 
 	fclose(baserec.tape);
 
-	if (BASS_ChannelStop(baserec.record) != TRUE)
-	{
-		WriteToLog("BASS ChannelStop at StopRemaster failed");
-	}
-
-	/*if (BASS_StreamFree(baserec.record) != TRUE)
-	{
-		WriteToLog("BASS StreamFree at StopRemaster failed");
-	}*/
+	gaudio->Stop();
 
 	baserec.record = 0;
 
@@ -1488,19 +1419,7 @@ void StopRemaster()
 
 	RecorderFixRemasterOffset();
 
-	// stop playing
-	streamrec.playpos = 0;
-	baserec.unipos = 0;
-	streamrec.breakplay = TRUE;
-	if (BASS_ChannelStop(streamrec.stream) != TRUE)
-	{
-		WriteToLog("BASS ChannelStop at StopRemaster failed");
-	}
-	if (BASS_StreamFree(streamrec.stream) != TRUE)
-	{
-		WriteToLog("BASS StreamFree at StopRemaster failed");
-	}
-	streamrec.stream = 0;
+	//gaudio->Stop();
 
 	recOrPlay = 0;
 	recOrStop = 1;
@@ -1537,10 +1456,8 @@ bool IsRecorderIdling()
 	{
 		return false;
 	}
-	else
-	{
-		return recOrPlay == 0;
-	}
+
+	return recOrPlay == 0;
 }
 
 bool IsRecorderRemastering() {
@@ -1549,6 +1466,7 @@ bool IsRecorderRemastering() {
 
 bool RecorderDeviceRetrieve(int devNum, int recDevNum)
 {
+//	return false;
 //	if (devNum == 0)
 //		devNum = -1;
 	WriteToLog("Retrieving audio device: devnum %i, recdevnum %i", devNum, recDevNum);
@@ -1579,84 +1497,7 @@ bool RecorderDeviceRetrieve(int devNum, int recDevNum)
 	ZeroMemory(baserec.safebuf_after, sizeof(baserec.safebuf_after));
 	ZeroMemory(streamrec.safebuf_after, sizeof(streamrec.safebuf_after));
 
-	bool result = true;
-
-	if (baserec.record != 0)
-	{
-		if (BASS_ChannelStop(baserec.record) != TRUE)
-		{
-			WriteToLog("BASS StreamFree at RecorderDeviceRetrieve failed");
-			result = false;
-		}
-		baserec.record = 0;
-	}
-
-	if(streamrec.stream != 0)
-	{
-		if (BASS_StreamFree(streamrec.stream) != TRUE)
-		{
-			WriteToLog("BASS StreamFree at RecorderDeviceRetrieve failed");
-			result = false;
-		}
-		streamrec.stream = 0;
-	}
-
-	if (BASS_RecordFree() != TRUE)
-	{
-		WriteToLog("BASS RecordFree at RecorderDeviceRetrieve failed");
-		result = false;
-	}
-
-	if (BASS_Free() != TRUE)
-	{
-		WriteToLog("BASS Free at RecorderDeviceRetrieve failed");
-		result = false;
-	}
-	else
-		result = true;
-
-	if (!result)
-		return false;
-
-	if (BASS_Init(devNum, 48000, BASS_DEVICE_MONO, mainWnd, 0) != TRUE)
-	{
-//		return false;
-		WriteToLog("BASS Init at RecorderDeviceRetrieve failed");
-	}
-
-	BASS_Start();
-
-	if (BASS_RecordInit(recDevNum) != TRUE)
-	{
-		WriteToLog("BASS RecordInit at RecorderDeviceRetrieve failed");
-//		return false;
-	}
-
-	//BASS_SetConfig(BASS_CONFIG_BUFFER, 10);
-
-	/*if (!BASS_SetConfig(BASS_CONFIG_BUFFER, 250))
-	{
-		WriteToLog("BASS SetConfig, BUFFER at RecorderDeviceRetrieve failed.");
-	}*/
-
-	if (BASS_SetConfig(BASS_CONFIG_REC_BUFFER, RECBUFFERDELAYMS) != TRUE)
-	{
-		WriteToLog("BASS SetConfig, REC_BUFFER at RecorderDeviceRetrieve failed");
-//		return false;
-	}
-	/*
-	BASS_SetDevice(0);
-	BASS_SetDevice(devNum);
-
-	BASS_RecordSetDevice(0);
-	BASS_RecordSetDevice(recDevNum);*/
-	DWORD error = BASS_ErrorGetCode();
-	if (error != BASS_OK)
-	{
-		WriteToLog("BASS error at RecorderDeviceRetrieve: %i", error);
-		return false;
-	}
-	return true;
+	return gaudio->Retrieve(devNum, recDevNum);
 }
 
 bool RecorderCanUndo()
@@ -1829,4 +1670,93 @@ void RecorderFixRemasterOffset()
 	{
 		baserec.recbuf[i] = 0;
 	}
+}
+
+void RecorderSetColoration(int clr)
+{
+	if (clr < 0)
+		clr = 0;
+	if (clr > 2)
+		clr = 2;
+
+	int prevclr = recCLRFX;
+	recCLRFX = clr;
+
+	if (prevclr == clr)
+		return;
+
+	baserec.peak = 0;
+
+	//rebuild coloration;
+	BEGINHIDDENCODE(GetColorMultiplicator)
+	for (int i = 0; i < baserec.bufpos; ++i)
+	{
+		float  fv = baserec.recbuf[i];
+		fv /= GetColorMultiplicator(prevclr);
+		fv *= GetColorMultiplicator(clr);
+		CheckRecorderPeak(fv, i);
+		baserec.recbuf[i] = fv;
+	}
+	ENDHIDDENCODE
+}
+
+void RecorderSetStretchSamples(int sn)
+{
+	if (sn >=0 && sn <= 10)
+		stretchSamples = sn;
+}
+
+void RecRerenderTape(const char* tapemapname)
+{
+	int mapsize = RECBUFSTANDARDSIZE * sizeof(short);
+
+	HANDLE hfile = CreateFileA(getProgramFileName(tapemapname), GENERIC_READ | GENERIC_WRITE, 0, 0, OPEN_ALWAYS,
+		FILE_ATTRIBUTE_NORMAL | FILE_FLAG_NO_BUFFERING | FILE_FLAG_WRITE_THROUGH, 0);
+
+	if (hfile != INVALID_HANDLE_VALUE)
+	{
+		HANDLE hmap =CreateFileMappingA(hfile, 0, PAGE_READWRITE, 0, mapsize, 0);
+		if (hmap != 0)
+		{
+			short* sbuf = (short*)MapViewOfFile(hmap, FILE_MAP_READ | FILE_MAP_WRITE, 0, 0, mapsize);
+			
+			if (sbuf != 0)
+			{
+				for (int i = 0; i < baserec.bufpos; ++i)
+				{
+					sbuf[i] = PackInt16ForWriting(FloatToInt16(baserec.recbuf[i]) - 1);
+				}
+
+				FlushViewOfFile(sbuf, mapsize);
+
+				for (int i = 0; i < baserec.bufpos; ++i)
+				{
+					baserec.recbuf[i] = Int16ToFloat(UnpackInt16ForReading(sbuf[i])+1);
+				}
+
+				FlushViewOfFile(sbuf, mapsize);
+			}
+			else
+			{
+				WriteToLog("Failed to map view of file %i", GetLastError());
+			}
+			//sbuf[i] = UnpackInt16ForReading(sbuf[i]);
+			UnmapViewOfFile(sbuf);
+		}
+		else
+		{
+			WriteToLog("Failed to map file");
+		}
+		CloseHandle(hmap);
+	}
+	else
+	{
+		WriteToLog("Failed to create tape file");
+	}
+	CloseHandle(hfile);
+}
+
+void RecorderReRender()
+{
+	RecRerenderTape("tape_render.bin");
 }

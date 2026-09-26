@@ -66,7 +66,7 @@
       <AdditionalIncludeDirectories>$(DXSDK_DIR)\Include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <AdditionalOptions>d3d9.lib d3dx9.lib dinput8.lib dxguid.lib winmm.lib  bass.lib libmp3lame.lib /NODEFAULTLIB:libcmt.lib %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>d3d9.lib d3dx9.lib dinput8.lib dxguid.lib winmm.lib  bass.lib libmp3lame.lib /NODEFAULTLIB:libcmt.lib MorningHiddenAudioProcessingd.lib %(AdditionalOptions)</AdditionalOptions>
       <AdditionalLibraryDirectories>$(ProjectDir)\lib\;$(DXSDK_DIR)\Lib\x86\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
@@ -87,7 +87,7 @@
       <AdditionalIncludeDirectories>C:\Program Files %28x86%29\Microsoft DirectX SDK %28June 2010%29\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <AdditionalOptions>d3d9.lib d3dx9.lib dinput8.lib dxguid.lib bass.lib winmm.lib  libmp3lame.lib %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>d3d9.lib d3dx9.lib dinput8.lib dxguid.lib bass.lib winmm.lib  libmp3lame.lib MorningHiddenAudioProcessing.lib %(AdditionalOptions)</AdditionalOptions>
       <AdditionalLibraryDirectories>$(ProjectDir)\lib\;$(DXSDK_DIR)\lib\x86\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
@@ -98,6 +98,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="audiolibwrapper.cpp" />
     <ClCompile Include="log.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="precompiledresources\resources.cpp" />
@@ -111,6 +112,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AudioFile.h" />
+    <ClInclude Include="audiolibwrapper.h" />
     <ClInclude Include="log.h" />
     <ClInclude Include="main.h" />
     <ClInclude Include="recorder.h" />
@@ -128,6 +130,14 @@
   </ItemGroup>
   <ItemGroup>
     <Xml Include="portabletaperecordersettings.xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="MorningHiddenAudioProcessing\MorningHiddenAudioProcessing.vcxproj">
+      <Project>{253b7a89-71b8-4622-a5f2-11a603101c00}</Project>
+    </ProjectReference>
+    <ProjectReference Include="PortYTrack\PortYTrack.vcxproj">
+      <Project>{0c95ea46-0bf4-4d7d-8300-b8f3ed1b90b3}</Project>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -24,6 +24,7 @@ struct Picture
 
 #ifdef _DEBUG
 #define DOBAKERESOURCES
+#define DEBUGSCREEN
 #endif
 #ifdef NDEBUG
 #undef DOBAKERESOURCES

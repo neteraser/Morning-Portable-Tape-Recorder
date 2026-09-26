@@ -3,7 +3,9 @@
 #include <windows.h>
 #include <stdio.h>
 #include <math.h>
+#include <cmath>
 #include "bass/bass.h"
+#include "audiolibwrapper.h"
 
 #define RECBUFFERDELAYMS 38
 //#define RECBUFFERLONGDELAYMS 1500
@@ -60,7 +62,7 @@ extern Record streamrec;
 	void* user);
 	*/
 
-inline float Int16ToFloat(short in)
+__inline float Int16ToFloat(short in)
 {
 	float out = 0;
 	if (in > 0)
@@ -70,7 +72,7 @@ inline float Int16ToFloat(short in)
 	return out;
 }
 
-inline short FloatToInt16(float in)
+__inline short FloatToInt16(float in)
 {
 	// clamp for saving
 	if (in > 1.0f)
@@ -161,7 +163,14 @@ __inline float PolarizeFloat(float in, bool plusorminus = true /*plus*/, bool wr
 	return out;
 }
 
-float CatmullRom1D(float t, float p0, float p1, float p2, float p3);
+__inline float CatmullRom1D(float t, float p0, float p1, float p2, float p3)
+{
+	float t2 = t * t;
+	float t3 = t2 * t;
+	return (0.5f * ((2.0f * p1) + (-p0 + p2) * t +
+		(2.0f * p0 - 5.0f * p1 + 4 * p2 - p3) * t2 +
+		(-p0 + 3.0f * p1 - 3.0f * p2 + p3) * t3));
+}
 
 void InitFolders();
 void InitRec(Record& rec);
@@ -216,12 +225,13 @@ void ComputeWaveform(Record& rec, int from, int to, int step, float& outplus, fl
 
 float ComputeRMS(Record& rec, int from, int to, int step = 1);
 
-inline float VolumeToDb(float volume)
+__inline float VolumeToDb(float volume)
 {
 	if (fabs(volume) < 0.00001f)
 		return -100.0f;
 	return 20.0f * log10f(fabs(volume));
 }
+
 
 void SaveRec(bool wavormp3 = true);
 
@@ -283,3 +293,15 @@ void RecorderLoadBeepSound(const float* buf, int len /* len to 8192 max */);
 void RecorderFixRemasterOffset();
 
 float RecCalculatePeak(Record& rec, int begin = 0, int end = -1);
+
+void RecorderSetColoration(int clr /* 0, 1, 2 supports three coloration */);
+
+bool RecorderPushData(const float* buf, int samples);
+
+bool RecorderPullData(float* buf, int samples);
+
+void RecorderSetCallbacks();
+
+void RecorderSetStretchSamples(int stretchSamplesNumber);
+
+void RecorderReRender();

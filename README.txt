@@ -19,3 +19,13 @@ Remastering effect is auto-offsetting the remastered track using a BEEP sound in
 Added support for a long device list.
 
 Bugfixing.
+
+* v.0.5
+
+The Recorder has introduced it's own audio library utilizing a little simpler workaround with the DirectSound which satisfies the needs of the application a little better than the standard BASS Library due to it's narrower specialization.
+
+You can choose the library to be used in the settings of the app.
+
+Also some Audio Render / Rerender function has been implemented for the first time using Windows File Mapping method.
+
+This application is becoming a professional audio recorder comparable to such app as the Fender Studio app, and it will become stable.
