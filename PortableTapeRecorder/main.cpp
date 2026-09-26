@@ -26,7 +26,7 @@
 
 HWND mainWnd;
 
-#define RECORDER_VERSION_STRING "Version v.0.4.0"
+#define RECORDER_VERSION_STRING "Version v.0.5.0"
 
 const char* diskName = "PortableTapeRecorder";
 const char* diskDesc = "Portable Tape Recorder";
