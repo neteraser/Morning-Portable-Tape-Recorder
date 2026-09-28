@@ -1,0 +1,14 @@
+{
+    "version": 1,
+    "revision": 0,
+    "rules": [
+        {
+            "primary-output": "Release\\framework.obj",
+            "outputs": [
+                "Release\\framework.h.obj.dt.module.json",
+                "Release\\framework.h.obj.dt.d.json"
+            ],
+            "requires": []
+        }
+    ]
+}

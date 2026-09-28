@@ -12,6 +12,7 @@
 #endif
 #include <immintrin.h>
 #include <direct.h>
+#include "morningreverb.h"
 
 #include "MorningHiddenAudioProcessing/MorningHidden.h"
 
@@ -257,8 +258,8 @@ static float proc256prevbuf = 0.0f;
 
 void RecProcess256Samples()
 {
-//	if (baserec.temppos < 256)
-//		return;
+	if (baserec.temppos < 256)
+		return;
 
 	_m_prefetchrs(baserec.rectempbuf);
 
@@ -271,10 +272,10 @@ void RecProcess256Samples()
 
 	for (int i = 0; i < recslowdownsamples; ++i)
 	{
-		float src_idx = ((float)i* 256.0f / (float)(recslowdownsamples));
+		float src_idx = ((float)i * 256.0f / (float)(recslowdownsamples));
 		int idx = (int)roundf(src_idx);
-		int idxprev = (int)idx - 1;
-		int idxnext = (int)idx + 1;
+		int idxprev = (int)roundf(src_idx - 1.0f);
+		int idxnext = (int)roundf(src_idx + 1.0f);
 		float spos = 0.5f + (float)(recslowdownsamples) / 256.0f - 1.0f;
 		
 		float vclean = baserec.rectempbuf[idx];
@@ -302,7 +303,7 @@ void RecProcess256Samples()
 
 	//memmove(baserec.rectempbuf, baserec.rectempbuf + 256, (baserec.temppos - 256) * sizeof(float));
 	
-	proc256prevbuf = baserec.rectempbuf[255];
+	proc256prevbuf = baserec.rectempbuf[baserec.temppos - 1];
 
 	baserec.temppos -= 256;
 
@@ -421,6 +422,33 @@ double ProcessInverseRIAAFilter(RIAAFilter& filter, double in)
 	return out;
 }
 
+void HelperProcessRIAAFilter(Record& rec, RIAAFilter& filter)
+{
+	for (int i = 0; i < rec.bufpos; ++i)
+	{
+		float in = rec.recbuf[i];
+		float out;
+		out = ProcessRIAAFilter(filter, in);
+		out *= 0.166f;
+		float mix = in * (1.0f - recQFX) + out * recQFX;
+		rec.recbuf[i] = mix;
+	}
+}
+
+void HelperProcessInverseRIAAFilter(Record& rec, RIAAFilter& filter)
+{
+	for (int i = 0; i < rec.bufpos; ++i)
+	{
+		float in = rec.recbuf[i];
+		float out;
+		out = ProcessInverseRIAAFilter(filter, in);
+		out *= 0.0166f;
+		float mix = in * (1.0f - recQFX) + out * recQFX;
+		rec.recbuf[i] = mix;
+	}
+}
+
+
 
 void PostProcessRec(Record& rec) {
 	PrepareRIAAFilter(baseriaafilter, 30, 150, 2000);
@@ -452,6 +480,8 @@ void PostProcessRec(Record& rec) {
 void StartRec(Record& rec) {
 	if (recOrPlay < 0)
 		return;
+
+	undolevel = 0;
 
 	WriteToLog("Record started... ticktime: %i", timeGetTime());
 
@@ -628,11 +658,11 @@ void ReadRec()
 
 		for (int i = 0; i < rlen; ++i)
 		{
-			float fv, fvp;
-			fv = -PolarizeFloat(Int16ToFloat(UnpackInt16ForReading(sv[i])), false);
+			float fv = 0, fvp = 0;
+			fv = -PolarizeFloat(Int16ToFloat(UnpackInt16ForReading(sv[i])), false, false);
 			if (baserec.tapepolarized != 0)
 			{
-				fvp = PolarizeFloat(Int16ToFloat(UnpackInt16ForReading(svp[i])), true);
+				fvp = PolarizeFloat(Int16ToFloat(UnpackInt16ForReading(svp[i])), true, false);
 			}
 			else
 			{
@@ -984,19 +1014,27 @@ void SaveRec(bool wavormp3)
 
 }
 
-void PreprocessRec(Record& rec)
-{
-	static float previn = 0, prevout = 0;
+static float previn = 0, prevout = 0;
 
+void PreprocessRec(Record& rec, int preprocesslen)
+{
 	if (rec.writepos == 0)
 	{
 		previn = 0;
 		prevout = 0;
 	}
-	for (int i = rec.writepos; i < rec.bufpos; ++i)
+	for (int i = rec.writepos; i < rec.writepos + preprocesslen; ++i)
 	{
 		float fv = rec.recbuf[i];
-		float out = (fv - previn) + 0.99f * prevout;
+		fv = ExorciseFloatNoise(fv);
+		rec.recbuf[i] = fv;
+	}
+	float coeff = 0.98f;
+	float gain = (1.0f + coeff) / 2.0f;
+	for (int i = rec.writepos; i < rec.writepos + preprocesslen; ++i)
+	{
+		float fv = rec.recbuf[i];
+		float out = (fv - previn) * gain + coeff * prevout;
 		rec.recbuf[i] = out;
 		previn = fv;
 		prevout = out;
@@ -1005,8 +1043,9 @@ void PreprocessRec(Record& rec)
 
 
 #define RECWRITECHUNK 128
-#define RECWRITECHUNKLONG 1024
+#define RECWRITECHUNKLONG 4096
 #define RECREWRITECOUNT 3
+//#define RECWRITENEEDLECHUNK 
 
 //int recTapeRewrites = RECREWRITECOUNT;
 
@@ -1021,20 +1060,22 @@ void WriteRec(bool forcerec)
 
 	if (IsRecorderWriting())
 	{
-		PreprocessRec(baserec);
-
-		float fv[RECWRITECHUNKLONG];
+		//float fv[RECWRITECHUNKLONG];
 
 		short sv[RECREWRITECOUNT][RECWRITECHUNKLONG];
 		short svp[RECREWRITECOUNT][RECWRITECHUNKLONG];
 
-		while (baserec.writepos < baserec.bufpos)
+		while(baserec.writepos < baserec.bufpos)
 		{
 			int wlen = bDoRewrites ? RECWRITECHUNK : RECWRITECHUNKLONG;
 			int wdif = baserec.bufpos - baserec.writepos;
 			if (wdif < wlen)
 				wlen = wdif;
+			if (wlen > RECWRITECHUNK)
+				wlen = RECWRITECHUNK;
 
+			PreprocessRec(baserec, wlen);
+			
 			float remasterq = 1.0f;
 //			if (IsRecorderRemastering())
 //				remasterq = 0.01f;
@@ -1042,7 +1083,7 @@ void WriteRec(bool forcerec)
 			for (int i = 0; i < wlen; ++i)
 			{
 				float fvi = baserec.recbuf[baserec.writepos + i];
-				fvi = fvi;
+				//fvi = fvi;
 
 				float fveff = ProcessInverseRIAAFilter(baseinvriaafilter, fvi);
 				fveff *= 0.0166f * (recQFX + 0.5f);
@@ -1052,17 +1093,17 @@ void WriteRec(bool forcerec)
 				
 				fveff *= remasterq;
 
-				fvi = (fvi + fveff);
+				fvi = (fvi + fveff) / 2.0f;
 
-				fvi += 0.0001f;
+				fvi += 0.000001f;
 
-				fv[i] = fvi;
+				//fv[i] = fvi;
 
 				for (int j = 0; j < RECREWRITECOUNT; ++j)
 				{
-					sv[j][i] = PackInt16ForWriting(FloatToInt16(PolarizeFloat(-fvi, false)));
-					svp[j][i] = PackInt16ForWriting(FloatToInt16(PolarizeFloat(fvi, true)));
-					fvi -= 0.000166f;
+					sv[j][i] = PackInt16ForWriting(FloatToInt16(PolarizeFloat(-fvi, false, true)));
+					svp[j][i] = PackInt16ForWriting(FloatToInt16(PolarizeFloat(fvi, true, true)));
+					fvi -= 0.000000166f;
 				}
 			}
 
@@ -1257,7 +1298,7 @@ void RecorderUpdate(float dt)
 				{
 					float fv = GetDummySinus() * recDeviceVolume * 0.33f;
 					CheckRecorderPeak(fv);
-					baserec.recbuf[baserec.bufpos++] = fv;
+					//baserec.recbuf[baserec.bufpos++] = fv;
 				}
 			}
 			/*if (remastermode == 0)
@@ -1759,4 +1800,82 @@ void RecRerenderTape(const char* tapemapname)
 void RecorderReRender()
 {
 	RecRerenderTape("tape_render.bin");
+}
+
+void RecorderAddReverb()
+{
+	if (undolevel < RECMAXUNDOLEVEL)
+		prevrec[undolevel++] = baserec;
+	else
+		return;
+
+	ProcessReverb48khz(baserec.recbuf, baserec.bufpos, recQFX * 0.22f);
+}
+
+void RecorderHighCut(Record& rec)
+{
+	float inprev = 0;
+	float outprev = 0;
+	float coeff = tanf(REC_PI * 150.0f / 48000.0f);
+
+	for (int i = 0; i < rec.bufpos; ++i)
+	{
+		float in = rec.recbuf[i];
+		float out;
+
+		out = in * coeff * 5.0f + inprev * coeff - (coeff - 1) * outprev;
+
+		out /= (coeff + 1.33f);
+
+		inprev = in;
+		outprev = out;
+
+		float mix = out * recQFX + in * (1 - recQFX);
+
+		rec.recbuf[i] = mix;
+	}
+}
+
+void RecorderHighBoost(Record& rec)
+{
+	float inprev = 0;
+	float outprev = 0;
+	float coeff = tanf(REC_PI * 18000.0f / 48000.0f);
+
+	for (int i = 0; i < rec.bufpos; ++i)
+	{
+		float in = rec.recbuf[i];
+		float out;
+
+		out = in * 10.0f - inprev * coeff - (coeff - 1) * outprev;
+
+		out /= (coeff + 1.33f);
+
+		inprev = in;
+		outprev = out;
+
+		float mix = out * recQFX + in * (1 - recQFX);
+
+		rec.recbuf[i] = mix;
+	}
+}
+
+void RecorderSuperfi()
+{
+	if (undolevel < RECMAXUNDOLEVEL)
+		prevrec[undolevel++] = baserec;
+	else
+		return;
+
+	RIAAFilter inverseriaa, riaa;
+	PrepareInverseRIAAFilter(inverseriaa, 68, 250, 2000);
+	PrepareRIAAFilter(riaa, 68, 200, 2000);
+
+	RecorderHighCut(baserec);
+
+	HelperProcessInverseRIAAFilter(baserec, inverseriaa);
+
+	RecorderHighBoost(baserec);
+
+	HelperProcessRIAAFilter(baserec, riaa);
 }

@@ -1,0 +1,9 @@
+﻿  dllmain.cpp
+  portytrack.cpp
+C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(1424,5): warning MSB8012: TargetPath(D:\Projects\PortableTapeRecorder\Release\PortYTrack.dll) не соответствует значению свойства выходного файла (D:\Projects\PortableTapeRecorder\PortableTapeRecorder\PortYTrack.dll) для Linker. Это может привести к неправильной сборке проекта. Чтобы исправить это, убедитесь, что значения свойств $(OutDir), $(TargetName) и $(TargetExt) соответствуют значению, указанному в %(Link.OutputFile).
+     Создается библиотека D:\Projects\PortableTapeRecorder\\PortableTapeRecorder\lib\PortYTrack.lib и объект D:\Projects\PortableTapeRecorder\\PortableTapeRecorder\lib\PortYTrack.exp
+  Создание кода
+  Previous IPDB not found, fall back to full compilation.
+  All 187 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+  Создание кода завершено
+  PortYTrack.vcxproj -> D:\Projects\PortableTapeRecorder\Release\PortYTrack.dll

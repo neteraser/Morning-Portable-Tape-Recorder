@@ -26,7 +26,7 @@
 
 HWND mainWnd;
 
-#define RECORDER_VERSION_STRING "Version v.0.5.0"
+#define RECORDER_VERSION_STRING "Version v.0.5.1"
 
 const char* diskName = "PortableTapeRecorder";
 const char* diskDesc = "Portable Tape Recorder";
@@ -50,8 +50,6 @@ bool disableWindowMovement = false;
 IDirectInput* di = 0;
 IDirectInputDevice* keyboard = 0;
 IDirectInputDevice* mouse = 0;
-
-#define REC_PI 3.14159265358979323846
 
 float DegreesToRadians(float degrees)
 {
@@ -904,6 +902,8 @@ equalizerY = 255, eqCropLeft = 1, eqCropRight = 0,
 meterX = 850, meterY = 110, meterWidth = 36, meterHeight = 320, meterOffsetX = 3, meterOffsetY = 5,
 trackX = 25, trackY = 125, trackWidth = 750, trackHeight = 100,
 remasterX = 460, remasterY = 460,
+reverbX = 460, reverbY = 460,
+superfiX = 460, superfiY = 490,
 applyX = 680, applyY = 18,
 settingsX = 350, settingsY = 25,
 loopX = 180, loopY = 480,
@@ -932,6 +932,8 @@ exportMp3Image, exportMp3OverImage,
 addriaaImage, addriaaOverImage,
 undofxImage, undofxOverImage,
 remasterImage, remasterOverImage,
+reverbImage, reverbOverImage,
+superfiImage, superfiOverImage,
 remasterplayingImage, remasterplayingOverImage,
 meterImage,
 settingsImage, settingsOverImage,
@@ -969,6 +971,8 @@ int zoomOut[2];
 int zoomFull[2];
 int remaster[2];
 int remasterPlaying[2];
+int reverb[2];
+int superfi[2];
 int meter;
 int stop[2];
 int settingsimg[2];
@@ -1277,7 +1281,7 @@ void DrawMainScreen()
 
 	for (int i = 1; i < windowWidth; ++i)
 	{
-		float x = //logf( (float) i / 1024.0f * 44100.0f ) * 79.48f - 298.94f;
+		float x = //logf( (float) i / 1024.0f * 48000.0f ) * 79.48f - 298.94f;
 			logf((float)i) * coeff;
 
 		if (x - lastX > 1)
@@ -1312,7 +1316,7 @@ void DrawMainScreen()
 	int pointI = 0;
 	float prevY = 0;
 
-	for (float i = eqCropLeft; i < (float)(windowWidth - eqCropRight); i += 0.33f)
+	for (float i = eqCropLeft; i < (float)(windowWidth - eqCropRight); i += 0.66f)
 	{
 		int i0, i1, i2, i3;
 		i0 = pointI - 2;
@@ -1535,13 +1539,17 @@ void DrawMainScreen()
 		SetColor(255, 255, 255, 255);
 		DrawPicture(px1, meterX + meterOffsetX, meterY + meterHeight - dbDelimLen - meterOffsetY, meterWidth - meterOffsetX * 2, 3);
 
-		DrawText(font, 720, 460, 720 + 150, 460 + 25, D3DCOLOR_RGBA(255, 255, 255, 128), "RMS Live: %.2f", db);
-		DrawText(font, 720, 460 + 25, 720 + 150, 460 + 50, D3DCOLOR_RGBA(255, 255, 255, 128), "RMS Total: %.2f", dbTotal);
+		const int statsX = 690;
+		const int statsY = 310;
+
+		DrawText(font, statsX, statsY, statsX + 150, statsY + 25, D3DCOLOR_RGBA(255, 255, 255, 128), "RMS Live: %.2f", db);
+		DrawText(font, statsX, statsY + 25, statsX + 150, statsY + 50, D3DCOLOR_RGBA(255, 255, 255, 128), "RMS Total: %.2f", dbTotal);
 
 		if(KeyTrig(DIK_P))
 		{
 			spFrame = 2;
 		}
+
 
 		//
 		ResetColor();
@@ -1619,8 +1627,17 @@ void DrawMainScreen()
 
 		RecorderSetQFX(1.0f - (ptrv - 30.0f) / 300.0f);
 
-		DrawText(font, 720, 460 + 50, 720 + 150, 460 + 75, D3DCOLOR_RGBA(255, 255, 255, 128), "QFX: %.2f", RecorderGetQFX());
+		DrawText(font, statsX, statsY + 50, statsX + 150, statsY + 75, D3DCOLOR_RGBA(255, 255, 255, 128), "QFX: %.2f", RecorderGetQFX());
 
+		if (DrawButton(reverb, reverbX, reverbY))
+		{
+			RecorderAddReverb();
+		}
+
+		if (DrawButton(superfi, superfiX, superfiY))
+		{
+			RecorderSuperfi();
+		}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1903,10 +1920,10 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 	TiXmlElement* elem = doc.RootElement();
 
 	if ( ! elem->Attribute("w", &windowWidth) )
-		windowWidth = 496;
+		windowWidth = 900;
 
 	if ( ! elem->Attribute("h", &windowHeight) )
-		windowHeight = 291;
+		windowHeight = 540;
 
 	diskName = elem->Attribute("name");
 	if ( ! diskName ) 
@@ -2134,6 +2151,23 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 			settingsImage = temp->Attribute("image");
 			settingsOverImage = temp->Attribute("onMouseOver");
 		}
+
+		if (strcmp(id, "reverb") == 0)
+		{
+			temp->Attribute("x", &reverbX);
+			temp->Attribute("y", &reverbY);
+			reverbImage = temp->Attribute("image");
+			reverbOverImage = temp->Attribute("onMouseOver");
+		}
+
+		if (strcmp(id, "superfi") == 0)
+		{
+			temp->Attribute("x", &superfiX);
+			temp->Attribute("y", &superfiY);
+			superfiImage = temp->Attribute("image");
+			superfiOverImage = temp->Attribute("onMouseOver");
+		}
+
 
 		temp = temp->NextSiblingElement("button");
 	}
@@ -2459,6 +2493,12 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 	settingsimg[0] = LoadPicture("images/" + settingsImage);
 	settingsimg[1] = LoadPicture("images/" + settingsOverImage);
 
+	reverb[0] = LoadPicture("images/" + reverbImage);
+	reverb[1] = LoadPicture("images/" + reverbOverImage);
+
+	superfi[0] = LoadPicture("images/" + superfiImage);
+	superfi[1] = LoadPicture("images/" + superfiOverImage);
+
 	loopon[0] = LoadPicture("images/" + loopOnImage);
 	loopon[1] = LoadPicture("images/" + loopOnOverImage);
 
@@ -2715,7 +2755,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 			//
 			WriteRec();
 
-			std::this_thread::sleep_for(std::chrono::microseconds(6));
+			//std::this_thread::sleep_for(std::chrono::microseconds(6));
 
 			// calc time
 

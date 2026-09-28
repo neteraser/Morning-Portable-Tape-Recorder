@@ -30,6 +30,7 @@
       <Filter>precompiledresources</Filter>
     </ClCompile>
     <ClCompile Include="audiolibwrapper.cpp" />
+    <ClCompile Include="morningreverb.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="xml\tinystr.H">
@@ -46,6 +47,7 @@
     <ClInclude Include="resourcecompiler.h" />
     <ClInclude Include="main.h" />
     <ClInclude Include="audiolibwrapper.h" />
+    <ClInclude Include="morningreverb.h" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="icon1.ico" />

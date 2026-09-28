@@ -1,0 +1,14 @@
+{
+    "version": 1,
+    "revision": 0,
+    "rules": [
+        {
+            "primary-output": "Debug\\portytrack.obj",
+            "outputs": [
+                "Debug\\portytrack.cpp.obj.dt.module.json",
+                "Debug\\portytrack.cpp.obj.dt.d.json"
+            ],
+            "requires": []
+        }
+    ]
+}

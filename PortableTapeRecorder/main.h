@@ -28,6 +28,7 @@ struct Picture
 #endif
 #ifdef NDEBUG
 #undef DOBAKERESOURCES
+#define DEBUGSCREEN
 #endif
 //#define DOBAKERESOURCES
 // baking resources to c++ code does work as a console app trick, such apps are loading much faster

@@ -44,11 +44,11 @@ long lastUpdatePos = 0;
 
 
 #define PLAYUPDATECHUNK 4096
-#define RECUPDATECHUNK 1024
+#define RECUPDATECHUNK 820
 
-float portytrackbuf[PLAYUPDATECHUNK * 4];
+float portytrackbuf[PLAYUPDATECHUNK * 2];
 
-float portytrackplaybuf[PLAYUPDATECHUNK * 4];
+float portytrackplaybuf[PLAYUPDATECHUNK * 2];
 
 __inline float PortYInt16ToFloat(short sv)
 {
@@ -103,15 +103,14 @@ void PortYUpdateThread(void*)
     {
         if (autoUpdate)
         {
-            autoUpdate = false;
-
+            //autoUpdate = false;
             if (!PortYTrackUpdate())
             {
                 //MessageBox(gwnd, "PortYTrack Update failed", "Error", MB_OK | MB_ICONERROR);
             }
-            autoUpdate = true;
+            //autoUpdate = true;
         }
-        std::this_thread::sleep_for(std::chrono::microseconds(66));
+        std::this_thread::sleep_for(std::chrono::microseconds(560*2*3) + std::chrono::nanoseconds(266*33));
     }
     _endthread();
 }
@@ -539,17 +538,18 @@ template<typename BufferInterface> bool RefreshRecFunc(BufferInterface* buffer)
 
     if (captureStatus == DSCBSTATUS_CAPTURING)
     {
-        redowrite:
         DWORD capturePos = 0, readPos = 0;
         hr = buffer->GetCurrentPosition(& capturePos, &readPos);
         if (FAILED(hr))
             return false;
 
         DWORD curPos = capturePos;
+        //if( capturePos - readPos )
 
-        int diff = capturePos - lastRecPos;
+    redowrite:
+        int diff = curPos - lastRecPos;
 
-        if (diff >= RECUPDATECHUNK)
+        if (diff > RECUPDATECHUNK)
         {
             LPVOID pAudio;
             DWORD pLen;
@@ -562,8 +562,8 @@ template<typename BufferInterface> bool RefreshRecFunc(BufferInterface* buffer)
             int samplesNumber = 0;
             samplesNumber = pLen / 2;
 
-            if (samplesNumber > 8192)
-                samplesNumber = 8192;
+            //if (samplesNumber > 8192)
+            //    samplesNumber = 8192;
 
             short* sv = (short*)pAudio;
 
@@ -608,7 +608,7 @@ template<typename BufferInterface> bool RefreshPlayFunc(BufferInterface* buffer)
 
         long diff = lastUpdatePos - playPos;// % (48000 * 2);
 
-        if (diff >= PLAYUPDATECHUNK && diff <= PLAYUPDATECHUNK * 2)
+        if (diff > PLAYUPDATECHUNK && diff < PLAYUPDATECHUNK * 2)
         {
             int samplesNumber = 0;
             samplesNumber = PLAYUPDATECHUNK;
@@ -640,7 +640,7 @@ template<typename BufferInterface> bool RefreshPlayFunc(BufferInterface* buffer)
             if (FAILED(hr))
                 return false;
 
-            lastUpdatePos += pLen;
+            lastUpdatePos += PLAYUPDATECHUNK * 2;
         }
     }
     return true;
@@ -667,15 +667,15 @@ bool RefreshRemasterFunc(CaptureBufferInterface* captureBuffer, BufferInterface*
 
     if (captureStatus == DSCBSTATUS_CAPTURING)
     {
-    redowrite:
         DWORD capturePos = 0, readPos = 0;
         hr = captureBuffer->GetCurrentPosition(&capturePos, &readPos);
         if (FAILED(hr))
             return false;
 
+    redowrite:
         int diff = capturePos - lastRecPos;
 
-        if (diff >= RECUPDATECHUNK)
+        if (diff > RECUPDATECHUNK)
         {
             LPVOID pAudio;
             DWORD pLen;
@@ -725,7 +725,7 @@ bool RefreshRemasterFunc(CaptureBufferInterface* captureBuffer, BufferInterface*
 
         long diff = lastUpdatePos - playPos;// % (48000 * 2);
 
-        if ((diff >= PLAYUPDATECHUNK) && (diff <= PLAYUPDATECHUNK * 2))
+        if ((diff > PLAYUPDATECHUNK) && (diff < PLAYUPDATECHUNK * 2))
         {
             int samplesNumber = 0;
 
@@ -758,7 +758,7 @@ bool RefreshRemasterFunc(CaptureBufferInterface* captureBuffer, BufferInterface*
             if (FAILED(hr))
                 return false;
 
-            lastUpdatePos += pLen;
+            lastUpdatePos += PLAYUPDATECHUNK * 2;
         }
     }
 

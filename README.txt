@@ -29,3 +29,9 @@ You can choose the library to be used in the settings of the app.
 Also some Audio Render / Rerender function has been implemented for the first time using Windows File Mapping method.
 
 This application is becoming a professional audio recorder comparable to such app as the Fender Studio app, and it will become stable.
+
+* v.0.5.1
+
+Added Reverb & Superfi functions. The Morning Reverb effect is based on the classic 8x4 SoX Library reverb effect, which was extended to 16x8 reverb tails. Superfi function is the dance of our recorder, just making the whole sound a little smoother.
+
+Bugfixing, the recorder's error is better.

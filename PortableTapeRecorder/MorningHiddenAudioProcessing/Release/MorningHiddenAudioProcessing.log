@@ -1,0 +1,9 @@
+﻿  MorningHiddenAudioProcessing.cpp
+D:\Projects\PortableTapeRecorder\PortableTapeRecorder\MorningHiddenAudioProcessing\MorningHiddenAudioProcessing.cpp(28,14): warning C4305: инициализация: усечение из "double" в "float"
+D:\Projects\PortableTapeRecorder\PortableTapeRecorder\MorningHiddenAudioProcessing\MorningHiddenAudioProcessing.cpp(29,14): warning C4305: инициализация: усечение из "double" в "float"
+D:\Projects\PortableTapeRecorder\PortableTapeRecorder\MorningHiddenAudioProcessing\MorningHiddenAudioProcessing.cpp(32,14): warning C4305: инициализация: усечение из "double" в "float"
+D:\Projects\PortableTapeRecorder\PortableTapeRecorder\MorningHiddenAudioProcessing\MorningHiddenAudioProcessing.cpp(34,14): warning C4305: инициализация: усечение из "double" в "float"
+D:\Projects\PortableTapeRecorder\PortableTapeRecorder\MorningHiddenAudioProcessing\MorningHiddenAudioProcessing.cpp(35,14): warning C4305: инициализация: усечение из "double" в "float"
+D:\Projects\PortableTapeRecorder\PortableTapeRecorder\MorningHiddenAudioProcessing\MorningHiddenAudioProcessing.cpp(44,28): warning C4244: =: преобразование "double" в "float", возможна потеря данных
+D:\Projects\PortableTapeRecorder\PortableTapeRecorder\MorningHiddenAudioProcessing\MorningHiddenAudioProcessing.cpp(46,28): warning C4244: =: преобразование "double" в "float", возможна потеря данных
+  MorningHiddenAudioProcessing.vcxproj -> D:\Projects\PortableTapeRecorder\PortableTapeRecorder\lib\MorningHiddenAudioProcessing.lib

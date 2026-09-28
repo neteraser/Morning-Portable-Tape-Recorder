@@ -20,6 +20,10 @@
 	<button id="settings" image="but_settings.png" onMouseOver="but_settings_over.png" x="500" y="25"/>
 	<button id="apply" image="but_apply.png" onMouseOver="but_apply_over.png" x="680" y="18"/>
 
+	<button id="reverb" image="but_reverb.png" onMouseOver="but_reverb_over.png" x="760" y="465"/>
+	<button id="superfi" image="but_superfi.png" onMouseOver="but_superfi_over.png" x="760" y="495"/>
+
+
 	<switch id="rec"
 		image1="but_rec.png" onMouseOver1="but_rec_over.png"
 		image2="but_stop.png" onMouseOver2="but_stop_over.png"

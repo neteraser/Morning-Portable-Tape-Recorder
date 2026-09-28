@@ -101,7 +101,10 @@
     <ClCompile Include="audiolibwrapper.cpp" />
     <ClCompile Include="log.cpp" />
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="precompiledresources\resources.cpp" />
+    <ClCompile Include="morningreverb.cpp" />
+    <ClCompile Include="precompiledresources\resources.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="recorder.cpp" />
     <ClCompile Include="resourcecompiler.cpp" />
     <ClCompile Include="UpdatingResources.cpp" />
@@ -115,6 +118,7 @@
     <ClInclude Include="audiolibwrapper.h" />
     <ClInclude Include="log.h" />
     <ClInclude Include="main.h" />
+    <ClInclude Include="morningreverb.h" />
     <ClInclude Include="recorder.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="resourcecompiler.h" />

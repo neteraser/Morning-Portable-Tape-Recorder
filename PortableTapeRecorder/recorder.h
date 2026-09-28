@@ -7,6 +7,8 @@
 #include "bass/bass.h"
 #include "audiolibwrapper.h"
 
+#define REC_PI 3.14159265358979323846
+
 #define RECBUFFERDELAYMS 38
 //#define RECBUFFERLONGDELAYMS 1500
 
@@ -68,6 +70,7 @@ __inline float Int16ToFloat(short in)
 	if (in > 0)
 		out = ((float)in) / 32767.0f;
 	else
+	if( in < 0)
 		out = ((float)in) / 32768.0f;
 	return out;
 }
@@ -90,10 +93,11 @@ __inline short FloatToInt16(float in)
 			out += 1;
 	}
 	else
+	if(in < 0.0f)
 	{
 		float v = in * 32768.0;
 		out = (short)truncf(v);
-		if ( v - (float)out < -0.6f)
+		if ( fabs(v - (float)out) > 0.6f)
 			out -= 1;
 	}
 	return out;
@@ -101,11 +105,10 @@ __inline short FloatToInt16(float in)
 
 __inline short PackInt16ForWriting(short in)
 {
-//	return in;
 	short out;
 	char bv[2];
 	bv[0] = (char)((in) >> 8);
-	bv[1] = (char)(in & 0x00FF);
+	bv[1] = (char)( ((in) << 8) >> 8);
 
 	char signbit;
 	signbit = ( bv[0] & 0b10000000 ) >> 7;
@@ -118,32 +121,29 @@ __inline short PackInt16ForWriting(short in)
 
 __inline short UnpackInt16ForReading(short in)
 {
-//	return in;
 	short out;
 	char bv[2];
 	bv[0] = (char)((in) >> 8);
-	bv[1] = (char)(in & 0x00FF);
+	bv[1] = (char)(((in) << 8) >> 8);
 
 	char signbit;
 	signbit = bv[1] & 0b00000001;
 	signbit = signbit << 7;
 	bv[1] = bv[1] >> 1;
 	bv[1] = bv[1] | signbit;
-	
-
-	/*char bswap;
-	bswap = bv[0];
-	bv[0] = bv[1];
-	bv[1] = bswap;*/
 
 	out = *((short*)bv);
 
 	return out;
 }
+	/*char bswap;
+	bswap = bv[0];
+	bv[0] = bv[1];
+	bv[1] = bswap;*/
 
 __inline float PolarizeFloat(float in, bool plusorminus = true /*plus*/, bool writeorread = true /*write*/)
 {
-//	return in;
+//return in;
 //	return in;
 	float out = in;
 	// clamp here, let it be
@@ -154,12 +154,31 @@ __inline float PolarizeFloat(float in, bool plusorminus = true /*plus*/, bool wr
 
 	if (plusorminus)
 	{
-		if (out < 0)
+		if(out < 0.0)
 		{
-			out = 1.0f - fabs(out);
-			out = -out;
+			if (writeorread)
+			{
+				out -= 1.0f / 32768.0f;
+				if (out < -1.0)
+					out = -1.0;
+			}
+
+			out = -(1.0f - fabs(out));
+
+			if (!writeorread)
+			{
+				out += 1.0f / 32768.0f;
+				if (out > 0.0)
+					out = 0.0;
+			}
 		}
 	}
+	return out;
+}
+
+__inline float ExorciseFloatNoise(float in)
+{
+	float out = in * 0.9999991666666f;
 	return out;
 }
 
@@ -194,7 +213,7 @@ double ProcessInverseRIAAFilter(RIAAFilter& filter, double in);
 
 void RecProcess256Samples();
 
-void PreprocessRec(Record& rec);
+void PreprocessRec(Record& rec, int preprocesslen);
 
 void PostProcessRec(Record& rec);
 
@@ -305,3 +324,11 @@ void RecorderSetCallbacks();
 void RecorderSetStretchSamples(int stretchSamplesNumber);
 
 void RecorderReRender();
+
+void RecorderAddReverb();
+
+void RecorderHighCut(Record& rec);
+
+void RecorderHighBoost(Record& rec);
+
+void RecorderSuperfi();
