@@ -2,6 +2,7 @@
 #include "recorder.h"
 #include "log.h"
 #include <string>
+#include <map>
 #include <cmath>
 #include <fstream>
 #ifdef RECUSELIBAUDIOFILE
@@ -34,6 +35,10 @@ std::string gfilename;
 bool bDoRewrites = true;
 
 float recQFX = 1.0f;
+
+long lastpushedsamplesless = 0;
+
+long lastpushedsamplesmore = 0;
 
 void InitFolders()
 {
@@ -117,8 +122,12 @@ __inline float FixDeviceBit(float in)
 	return -out;
 }
 
+static int lastpushedsamples = 0;
+
 bool RecorderPushData(const float* buffer, int length)
 {
+	lastpushedsamples += length;
+
 	_m_prefetchrs(baserec.recbuf + baserec.bufpos);
 	_m_prefetchrs(buffer);
 
@@ -481,6 +490,9 @@ void StartRec(Record& rec) {
 	if (recOrPlay < 0)
 		return;
 
+	lastpushedsamplesmore = 0;
+	lastpushedsamplesless = 0;
+	lastpushedsamples = 0;
 	undolevel = 0;
 
 	WriteToLog("Record started... ticktime: %i", timeGetTime());
@@ -685,6 +697,9 @@ void StopRec(Record& rec)
 {
 	if (recOrPlay >= 0)
 		return;
+
+	lastpushedsamplesmore = 0;
+	lastpushedsamplesless = 0;
 
 	//WriteRec(true);
 
@@ -1220,8 +1235,28 @@ float checkzeroinput = 0.0f;
 
 extern int curDevNum, curRecDevNum;
 
+int prevlastpushsamples = 0;
+
+float resetcounterdt = 0.0;
+
 void RecorderUpdate(float dt)
 {
+	if (lastpushedsamples < prevlastpushsamples)
+		lastpushedsamplesless += 1;
+
+	if (lastpushedsamples > prevlastpushsamples)
+		lastpushedsamplesmore += 1;
+
+	prevlastpushsamples = lastpushedsamples;
+	lastpushedsamples = 0;
+
+	if (resetcounterdt > 5.0f)
+	{
+		lastpushedsamplesmore = 0;
+		lastpushedsamplesless = 0;
+		resetcounterdt = 0.0f;
+	}
+	resetcounterdt += dt;
 	//BASS_Update(10);
 	//BASS_ChannelUpdate(baserec.record, 10);
 
@@ -1556,6 +1591,11 @@ void RecorderSetLoop(bool loop)
 	playloop = loop;
 }
 
+bool RecorderIsLooping()
+{
+	return playloop;
+}
+
 void RecorderSetRewriteMode(bool hddrewrite)
 {
 	//if(!IsRecorderWriting())
@@ -1878,4 +1918,14 @@ void RecorderSuperfi()
 	RecorderHighBoost(baserec);
 
 	HelperProcessRIAAFilter(baserec, riaa);
+}
+
+int RecorderGetLastSamplesNumber()
+{
+	return lastpushedsamples;
+}
+
+bool RecorderGetTrollOrJoushState()
+{
+	return lastpushedsamplesmore > lastpushedsamplesless;
 }

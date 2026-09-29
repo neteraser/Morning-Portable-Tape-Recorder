@@ -301,6 +301,8 @@ bool RecorderDeviceRetrieve(int devNum = -1, int recDevNum = -1);
 
 void RecorderSetLoop(bool loop);
 
+bool RecorderIsLooping();
+
 void RecorderSetRewriteMode(bool hddrewrite);
 
 void RecorderSetQFX(float qfxvalue = 1.0f /* 0.1...1.0f */);
@@ -332,3 +334,7 @@ void RecorderHighCut(Record& rec);
 void RecorderHighBoost(Record& rec);
 
 void RecorderSuperfi();
+
+int RecorderGetLastSamplesNumber();
+
+bool RecorderGetTrollOrJoushState();

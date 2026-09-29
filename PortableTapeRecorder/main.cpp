@@ -20,7 +20,7 @@
 #include <vector>
 #include <map>
 #include <string>
-
+#include <algorithm>
 #include <thread>
 #include <chrono>
 
@@ -1202,6 +1202,8 @@ void DrawMainScreen()
 		else
 		if (KeyTrig(DIK_SPACE))
 		{
+			if (KeyPressed(DIK_LSHIFT))
+				RecorderSetLoop(true);
 			PlayRec();
 		}
 	}
@@ -1554,7 +1556,7 @@ void DrawMainScreen()
 		//
 		ResetColor();
 	
-		static bool bloop = false;
+		bool bloop = RecorderIsLooping();
 		if (DrawButton(bloop ? loopoff : loopon, loopX, loopY))
 		{
 			bloop = !bloop;
@@ -1603,7 +1605,43 @@ void DrawMainScreen()
 		}
 		if (regulating)
 		{
-			ptrv += (float)(MouseMoveX() + MouseMoveY()) / 2.0f;
+			float deltax = -MouseMoveX();// *20.0f;
+			float deltay = (float)MouseMoveY();// *20.0f
+			if (ptrv < 165.0f)
+			{
+				deltay = -deltay;
+			}
+			else
+			if (ptrv > 165.0f && ptrv < 195.0)
+			{
+				deltay = 0.0f;
+				deltax /= 4.0f;
+			}
+			if (ptrv < 90 || ptrv > 270.0f)
+			{
+				deltax = -deltax;
+			}
+			if ((ptrv < 105 && ptrv > 75) || (ptrv < 285 && ptrv > 255))
+			{
+				deltax = 0.0f;
+				deltay /= 4.0f;
+			}
+
+			static float deltaprev = 0.0f;
+
+			float delta = deltax + deltay;
+
+			delta = (delta + deltaprev) / 2.0f;
+
+			const float deltamax = 20.0f;
+			if (delta > deltamax)
+				delta = deltamax;
+			if (delta < -deltamax)
+				delta = -deltamax;
+
+			deltaprev = delta;
+			
+			ptrv += delta;
 			if (ptrv > 330)
 				ptrv = 330;
 			if (ptrv < 30)
@@ -2713,7 +2751,27 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 			}
 
 #ifdef DEBUGSCREEN
-			DrawText(font, 55, 55, 155, 80, D3DCOLOR_RGBA(255, 255, 255, 255), "FPS: %0.3f sec", timeFps);
+
+			SetColor(0, 0, 0, 255);
+
+			DrawPicture(px1, 0, 0, 200, 85);
+
+			DrawText(font, 0, 0, 100, 25, D3DCOLOR_RGBA(255, 128, 128, 255), "[debugscreen]");
+
+			DrawText(font, 25, 20, 150, 40, D3DCOLOR_RGBA(255, 255, 255, 255), "FPS: %0.3f sec", timeFps);
+
+			DrawText(font, 25, 40, 150, 60, D3DCOLOR_RGBA(255, 255, 255, 255), "Samples: %i", RecorderGetLastSamplesNumber());
+
+			bool trollorjoush = RecorderGetTrollOrJoushState();
+
+			D3DCOLOR clr = 0;
+			if (trollorjoush)
+				clr = D3DCOLOR_RGBA(0, 0, 255, 255);//SetColor(0, 0, 255, 255);
+			else
+				clr = D3DCOLOR_RGBA(255, 0, 0, 255);//SetColor(255, 0, 0, 255);
+
+			DrawText(font, 25, 60, 150, 80, clr, trollorjoush ? "Troll" : "Joush");
+
 #endif 
 
 			SetBlendNormal();
