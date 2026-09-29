@@ -35,3 +35,7 @@ This application is becoming a professional audio recorder comparable to such ap
 Added Reverb & Superfi functions. The Morning Reverb effect is based on the classic 8x4 SoX Library reverb effect, which was extended to 16x8 reverb tails. Superfi function is the dance of our recorder, just making the whole sound a little smoother.
 
 Bugfixing, the recorder's error is better.
+
+* v.0.5.2
+
+Introducing the Debug Screen on which you can know whether your recorder is a troll or joush in music, stable one or blinking one, this depends on the quality of your studio's setup.
