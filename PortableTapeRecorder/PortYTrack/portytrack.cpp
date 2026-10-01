@@ -95,18 +95,19 @@ __inline char PortYFloatToInt8(float fv)
     return cv;
 }
 
+bool initialized = false;
 bool autoUpdate = false;
 
 void PortYUpdateThread(void*)
 {
-    while (true)
+    while (initialized)
     {
         if (autoUpdate)
         {
             //autoUpdate = false;
             if (!PortYTrackUpdate())
             {
-                //MessageBox(gwnd, "PortYTrack Update failed", "Error", MB_OK | MB_ICONERROR);
+                //MessageBoxA(gwnd, "PortYTrack Update failed", "Error", MB_OK | MB_ICONERROR);
             }
             //autoUpdate = true;
         }
@@ -158,6 +159,9 @@ bool PortYTrackInit(HWND wnd)
     }*/
 
     autoUpdate = true;
+    
+    initialized = true;
+
     _beginthread(PortYUpdateThread, 0, NULL);
 
     return true;
@@ -601,10 +605,22 @@ template<typename BufferInterface> bool RefreshPlayFunc(BufferInterface* buffer)
 
     if (playStatus == DSBSTATUS_PLAYING)
     {
+        //redoplay:
         DWORD playPos = 0, writePos = 0;
         hr = buffer->GetCurrentPosition(&playPos, &writePos);
         if (FAILED(hr))
             return false;
+
+        long endofbuf = 48000 * 248 * 2 - (long)playPos;
+        if (endofbuf < PLAYUPDATECHUNK * 2)
+        {
+            //playcall(portytrackplaybuf, PLAYUPDATECHUNK);
+            playPos = playPos % (PLAYUPDATECHUNK * 2);
+            hr = buffer->SetCurrentPosition(playPos);
+            if (FAILED(hr))
+                return false;
+            lastUpdatePos = PLAYUPDATECHUNK * 2;
+        }
 
         long diff = lastUpdatePos - playPos;// % (48000 * 2);
 
@@ -920,6 +936,8 @@ bool PortYTrackSetRecDevice(int devnum)
 bool PortYTrackFree()
 {
     autoUpdate = false;
+
+    initialized = false;
 
     bool retval = true;
 

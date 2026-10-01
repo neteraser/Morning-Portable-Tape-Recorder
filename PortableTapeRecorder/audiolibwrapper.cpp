@@ -2,9 +2,7 @@
 #include <Windows.h>
 #include "audiolibwrapper.h"
 #include "recorder.h"
-#include "bass/bass.h"
 #include "log.h"
-#include "PortYTrack/portytrack.h"
 
 bool PortYTrackLibraryWrapper::Init(HWND myWnd, int)
 {
@@ -121,7 +119,7 @@ bool PortYTrackLibraryWrapper::Free()
 
 	return true;
 }
-
+#ifdef RECUSEBASSLIB
 bool BASSLibraryWrapper::Init(HWND myWnd, int basicdelayms)
 {
 	window = myWnd;
@@ -423,11 +421,14 @@ bool BASSLibraryWrapper::Retrieve(int devNum, int recDevNum)
 	}
 	return true;
 }
+#endif // RECUSEBASSLIB
 
 #define MAXAUDIOLIBRARIES 4
 std::string audiolibrarynames[MAXAUDIOLIBRARIES] = { "PortYTrack Library", "BASS Library" };
 
+#ifdef RECUSEBASSLIB
 BASSLibraryWrapper bassAudio;
+#endif
 
 PortYTrackLibraryWrapper portytrackAudio;
 
@@ -451,9 +452,14 @@ bool SwitchAudioLibrary(int audiolibrarynumber, HWND wnd, int delay)
 	case AUDIOLIBNUMBER_PORTYTRACK:
 		gaudio = &portytrackAudio;
 		break;
+#ifdef RECUSEBASSLIB
 	case AUDIOLIBNUMBER_BASS:
 		gaudio = &bassAudio;
 		break;
+#else
+	case AUDIOLIBNUMBER_BASS:
+		WriteToLog("BASS Library was switched off in this build.");
+#endif
 	default:
 		gaudio = &portytrackAudio;
 	}

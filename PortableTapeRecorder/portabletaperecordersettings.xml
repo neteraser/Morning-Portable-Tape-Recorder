@@ -7,6 +7,9 @@
 
 	<button id="quit" image="but_quit.png" onMouseOver="but_quit_over.png" x="850" y="50"/>
 	<button id="hide" image="but_hide.png" onMouseOver="but_hide_over.png" x="815" y="50"/>
+	<button id="info" image="but_info.png" onMouseOver="but_info_over.png" x="765" y="50"/>
+	<button id="quitinfo" image="but_quitinfo.png" onMouseOver="but_quitinfo_over.png" x="780" y="480"/>
+
 	
 	<switch id="normalize" image1="but_normalize.png" onMouseOver1="but_normalize_over.png" x="215" y="465"
 			image2="but_limit.png" onMouseOver2="but_limit_over.png"  />

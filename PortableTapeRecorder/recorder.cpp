@@ -40,6 +40,9 @@ long lastpushedsamplesless = 0;
 
 long lastpushedsamplesmore = 0;
 
+long lastpushedsamplesavrg = 0;
+
+
 void InitFolders()
 {
 	gfilename.reserve(1024);
@@ -475,7 +478,7 @@ void PostProcessRec(Record& rec) {
 		ffilter = ProcessRIAAFilter(baseriaafilter, fsample);
 		ffilter *= 0.166f * (recQFX + 0.5f);
 		ffilter *= remasterq;
-		fsample = (fsample + ffilter) / 2.0f;
+		fsample = (fsample + ffilter);
 		// fadeout
 		if (i > (rec.bufpos - 24000))
 			fsample *= (rec.bufpos - i) / 24000.0;
@@ -492,6 +495,7 @@ void StartRec(Record& rec) {
 
 	lastpushedsamplesmore = 0;
 	lastpushedsamplesless = 0;
+	lastpushedsamplesavrg = 0;
 	lastpushedsamples = 0;
 	undolevel = 0;
 
@@ -742,7 +746,7 @@ void StopPlayingRec()
 
 	streamrec.playpos = 0;
 	baserec.unipos = 0;
-	streamrec.breakplay = TRUE;
+	streamrec.breakplay = FALSE;
 
 	gaudio->Stop();
 
@@ -773,6 +777,22 @@ bool RecorderPullData(float* buffer, int length)
 			recspeedupsamples = 256 + stretchSamples;
 	}
 
+	int newplaylen = (int)roundf((float)length * (float)recspeedupsamples / 256.0f);
+
+	if (streamrec.playpos + newplaylen >= streamrec.bufpos)
+	{
+		if (playloop && remastermode != 0)
+		{
+			streamrec.playpos = 0;
+		}
+		else
+		{
+			streamrec.breakplay = TRUE;
+			return false;
+		}
+	}
+
+
 	float* fbuf = (float*)buffer;
 
 	for (int i = 0; i < length; ++i)
@@ -800,23 +820,8 @@ bool RecorderPullData(float* buffer, int length)
 		//streamrec.playpos = (int)src_idx;
 		
 		//streamrec.playpos += 1;
-
-		//if (baserec.playpos >= RECBUFSTANDARDSIZE)
-		//	return BASS_STREAMPROC_END;
-		if (src_idx >= streamrec.bufpos + 4800)
-		{
-			if(playloop && remastermode != 0)
-			{
-				streamrec.playpos = 0;
-			}
-			else
-			{
-				streamrec.breakplay = TRUE;
-				return false;
-			}
-		}
 	}
-	streamrec.playpos += (int)roundf((float)length * (float)recspeedupsamples / 256.0f);
+	streamrec.playpos += newplaylen;
 	return true;
 }
 
@@ -941,7 +946,7 @@ void SaveRec(bool wavormp3)
 		static char savemessage[1024];
 		sprintf(savemessage, "WAV export was switched off in this version of the app");
 #endif
-		MessageBox(0, savemessage, "Saved!", MB_ICONINFORMATION | MB_OK);
+		MessageBoxA(mainWnd, savemessage, "Saved!", MB_ICONINFORMATION | MB_OK);
 	}
 	else
 	{
@@ -1015,7 +1020,7 @@ void SaveRec(bool wavormp3)
 		sprintf(savemessage, "MP3 export was switched off in this version of the app.");
 #endif
 
-		MessageBox(0, savemessage, "Saved!", MB_ICONINFORMATION | MB_OK);
+		MessageBoxA(mainWnd, savemessage, "Saved!", MB_ICONINFORMATION | MB_OK);
 	}
 
 	if (!dontseek)
@@ -1059,7 +1064,7 @@ void PreprocessRec(Record& rec, int preprocesslen)
 
 #define RECWRITECHUNK 128
 #define RECWRITECHUNKLONG 4096
-#define RECREWRITECOUNT 3
+#define RECREWRITECOUNT 4
 //#define RECWRITENEEDLECHUNK 
 
 //int recTapeRewrites = RECREWRITECOUNT;
@@ -1121,6 +1126,8 @@ void WriteRec(bool forcerec)
 					fvi -= 0.000000166f;
 				}
 			}
+			//
+			int rewrites = (RecorderGetTrollOrJoushState() > 0) ? RECREWRITECOUNT - 2: ((RecorderGetTrollOrJoushState() < 0) ? RECREWRITECOUNT : RECREWRITECOUNT - 1);
 
 			// standard 
 
@@ -1135,7 +1142,7 @@ void WriteRec(bool forcerec)
 
 			if (bDoRewrites)
 			{
-				for (int i = 1; i < RECREWRITECOUNT; ++i)
+				for (int i = 1; i < rewrites; ++i)
 				{
 					fseek(baserec.tape, -wlen * 2, SEEK_CUR);
 					fwrite(sv[i], 2, wlen, baserec.tape);
@@ -1159,7 +1166,7 @@ void WriteRec(bool forcerec)
 				}
 				if (bDoRewrites)
 				{
-					for (int i = 1; i < RECREWRITECOUNT; ++i)
+					for (int i = 1; i < rewrites; ++i)
 					{
 						fseek(baserec.tapepolarized, -wlen * 2, SEEK_CUR);
 						fwrite(svp[i], 2, wlen, baserec.tapepolarized);
@@ -1241,16 +1248,18 @@ float resetcounterdt = 0.0;
 
 void RecorderUpdate(float dt)
 {
-	if (lastpushedsamples < prevlastpushsamples)
+	if (lastpushedsamples < lastpushedsamplesavrg)
 		lastpushedsamplesless += 1;
 
-	if (lastpushedsamples > prevlastpushsamples)
+	if (lastpushedsamples > lastpushedsamplesavrg)
 		lastpushedsamplesmore += 1;
+
+	lastpushedsamplesavrg = (lastpushedsamples + lastpushedsamplesavrg) / 2;
 
 	prevlastpushsamples = lastpushedsamples;
 	lastpushedsamples = 0;
 
-	if (resetcounterdt > 5.0f)
+	if (resetcounterdt > 3.0f)
 	{
 		lastpushedsamplesmore = 0;
 		lastpushedsamplesless = 0;
@@ -1264,10 +1273,10 @@ void RecorderUpdate(float dt)
 	{
 		if (baserec.lastreccallback_time != 0)
 		{
-			/*
-			if (timeGetTime() - baserec.lastreccallback_time > 6000)
+			
+			if (timeGetTime() - baserec.lastreccallback_time > 3000)
 			{
-				MessageBox(mainWnd, "If your recording device breaks the stream, we can't fix it because we're using a little simpler libraries.", "Notice", MB_OK);
+				MessageBoxA(mainWnd, "If your recording device breaks the stream, we can't fix it because we're using a little simpler libraries.", "Notice", MB_OK);
 				if (remastermode == 0)
 				{
 					StopRemaster();
@@ -1276,7 +1285,7 @@ void RecorderUpdate(float dt)
 				{
 					StopRec(baserec);
 				}
-			}*/
+			}
 		}
 	}
 
@@ -1922,10 +1931,16 @@ void RecorderSuperfi()
 
 int RecorderGetLastSamplesNumber()
 {
-	return lastpushedsamples;
+	return 	lastpushedsamplesavrg;
+;
 }
 
-bool RecorderGetTrollOrJoushState()
+int RecorderGetTrollOrJoushState()
 {
-	return lastpushedsamplesmore > lastpushedsamplesless;
+	int state = 0;
+	if (lastpushedsamplesmore > lastpushedsamplesless)
+		state = 1;
+	if (lastpushedsamplesmore < lastpushedsamplesless)
+		state = -1;
+	return state;
 }

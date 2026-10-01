@@ -39,3 +39,9 @@ Bugfixing, the recorder's error is better.
 * v.0.5.2
 
 Introducing the Debug Screen on which you can know whether your recorder is a troll or joush in music, stable one or blinking one, this depends on the quality of your studio's setup.
+
+* v.0.5.3 
+
+Version 0.5.3 is introducing the first recording stabilizer, which is making less or more HDD rewriters depending on the state of your recorder. If your recorder is a troll, it makes less HDD rewrites, if it is a joush it makes more HDD rewrites.
+
+Bugfixing, and this is a pretty stable release.

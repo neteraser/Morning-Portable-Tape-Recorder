@@ -1,5 +1,8 @@
 #pragma once
 
+//#define WIN32_LEAN_AND_MEAN
+#define _CRT_SECURE_NO_WARNINGS
+
 #include <d3d9.h>
 #include <d3dx9.h>
 #include <windows.h>
@@ -28,7 +31,8 @@ struct Picture
 #endif
 #ifdef NDEBUG
 #undef DOBAKERESOURCES
-#define DEBUGSCREEN
 #endif
 //#define DOBAKERESOURCES
 // baking resources to c++ code does work as a console app trick, such apps are loading much faster
+
+extern HWND mainWnd;

@@ -26,7 +26,7 @@
 
 HWND mainWnd;
 
-#define RECORDER_VERSION_STRING "Version v.0.5.1"
+#define RECORDER_VERSION_STRING "Version v.0.5.3"
 
 const char* diskName = "PortableTapeRecorder";
 const char* diskDesc = "Portable Tape Recorder";
@@ -50,6 +50,8 @@ bool disableWindowMovement = false;
 IDirectInput* di = 0;
 IDirectInputDevice* keyboard = 0;
 IDirectInputDevice* mouse = 0;
+
+bool mouseinaction = false;
 
 float DegreesToRadians(float degrees)
 {
@@ -561,6 +563,12 @@ int DrawButton(int butPictures[2], int x, int y, bool clickOrDown = true, bool f
 	if (forceOver)
 		isOver = 1;
 
+	if (mouseinaction)
+	{
+		isOver = 0;
+		result = 0;
+	}
+
 	DrawPicture( butPictures[isOver], x, y);
 
 	return result;
@@ -897,7 +905,9 @@ recX = 23, recY = 267,
 playX = 90, playY = 470,
 zoomX = 330, zoomY = 25,
 hideX = 456, hideY = 267,
+infobutX = 750, infobutY = 50,
 quitX = 473, quitY = 267,
+quitinfoX = 780, quitinfoY = 480,
 equalizerY = 255, eqCropLeft = 1, eqCropRight = 0,
 meterX = 850, meterY = 110, meterWidth = 36, meterHeight = 320, meterOffsetX = 3, meterOffsetY = 5,
 trackX = 25, trackY = 125, trackWidth = 750, trackHeight = 100,
@@ -917,7 +927,9 @@ double regulatorDefaultValue = 0.5;
 
 std::string
 quitImage, quitOverImage,
+quitInfoImage, quitInfoOverImage,
 hideImage, hideOverImage,
+infoButImage, infoButOverImage,
 normalizeImage, normalizeOverImage,
 limitImage, limitOverImage,
 recImage, recOverImage,
@@ -954,9 +966,12 @@ std::string exportartist = "Tape Recorder";
 std::string beepSound = "beepforme.wav";
 
 int back;
+int info;
 int settingsback;
 int quit[2];
+int quitinfo[2];
 int hide[2];
+int infobut[2];
 int normalize[2];
 int limit[2];
 int exportbut[2];
@@ -1178,6 +1193,13 @@ void DrawMainScreen()
 		//ShowWindow(mainWnd, SW_MINIMIZE );
 	}
 
+	if (DrawButton(infobut, infobutX, infobutY))
+	{
+		spFrame = 3;
+		//ShowWindow(mainWnd, SW_MINIMIZE );
+	}
+
+
 	if (noButtonIsOver)
 	{
 		SetCursor(LoadCursor(0, IDC_ARROW));
@@ -1240,13 +1262,13 @@ void DrawMainScreen()
 	/*
 	if (BASS_GetDevice() != bassdevice )
 	{
-		MessageBox(mainWnd, "Playing device lost!", "Error", MB_OK);
+		MessageBoxA(mainWnd, "Playing device lost!", "Error", MB_OK);
 		//RecorderDeviceRetrieve();
 	}
 
 	if (BASS_RecordGetDevice() != bassrecorddevice )
 	{
-		MessageBox(mainWnd, "Recording device lost!", "Error", MB_OK);
+		MessageBoxA(mainWnd, "Recording device lost!", "Error", MB_OK);
 		//RecorderDeviceRetrieve();
 	}*/
 
@@ -1603,6 +1625,16 @@ void DrawMainScreen()
 		{
 			regulating = false;
 		}
+
+		if (regulating)
+		{
+			mouseinaction = true;
+		}
+		else
+		{
+			mouseinaction = false;
+		}
+
 		if (regulating)
 		{
 			float deltax = -MouseMoveX();// *20.0f;
@@ -1924,7 +1956,7 @@ void DrawSettingsScreen()
 
 	////////////////////////
 
-	if (DrawButton(applyimg, applyX, applyY))
+	if (DrawButton(applyimg, applyX, applyY) || KeyTrig(DIK_ESCAPE))
 	{
 		//for (int i = 0; i < 16; ++i)
 		//{
@@ -1933,6 +1965,19 @@ void DrawSettingsScreen()
 			//BASS_ChannelStop(recrehash);
 		//}
 		//RecorderDeviceRetrieve();
+		spFrame = 1;
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+
+void DrawInfoScreen()
+{
+	DrawPicture(info, 0, 0);
+
+	if(KeyTrig(DIK_ESCAPE) || DrawButton(quitinfo, quitinfoX, quitinfoY))
+	{
 		spFrame = 1;
 	}
 }
@@ -1951,7 +1996,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 
 	if ( ! doc.LoadFile("portabletaperecordersettings.xml") )
 	{
-		MessageBox(0, "Settings file [portabletaperecordersettings.xml] failed", "Sorry!", MB_ICONERROR | MB_OK);
+		MessageBoxA(mainWnd, "Settings file [portabletaperecordersettings.xml] failed", "Sorry!", MB_ICONERROR | MB_OK);
 		return -1;
 	}
 
@@ -1988,7 +2033,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 
 	if ( ! mainWnd )
 	{
-		MessageBox(0, "Window failed!", "Sorry!", MB_ICONERROR | MB_OK);
+		MessageBoxA(0, "Window failed!", "Sorry!", MB_ICONERROR | MB_OK);
 		return -1;
 	}
 
@@ -2032,7 +2077,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 
 	if ( ! InitD3D(mainWnd) )
 	{
-		MessageBox(0, "D3D failed", "Sorry!", MB_ICONERROR | MB_OK);
+		MessageBoxA(mainWnd, "D3D failed", "Sorry!", MB_ICONERROR | MB_OK);
 		return -1;
 	}
 
@@ -2042,7 +2087,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 
 	if( ! InitInput(hInst, mainWnd) )
 	{
-		MessageBox(mainWnd, "DInput failed", "Sorry!", MB_ICONERROR | MB_OK);
+		MessageBoxA(mainWnd, "DInput failed", "Sorry!", MB_ICONERROR | MB_OK);
 		return -1;
 	}
 
@@ -2055,7 +2100,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 	//if (! BASS_Init(-1, 48000, BASS_DEVICE_MONO, mainWnd, 0))
 	if( !gaudio->Init(mainWnd, RECBUFFERDELAYMS) )
 	{
-		MessageBox(0, "Audio library failed!", "Sorry!", MB_ICONERROR | MB_OK);
+		MessageBoxA(0, "Audio library failed!", "Sorry!", MB_ICONERROR | MB_OK);
 		return -1;
 	}
 
@@ -2149,6 +2194,15 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 			quitOverImage = temp->Attribute("onMouseOver");
 		}
 
+		if (strcmp(id, "quitinfo") == 0)
+		{
+			temp->Attribute("x", &quitinfoX);
+			temp->Attribute("y", &quitinfoY);
+			quitInfoImage = temp->Attribute("image");
+			quitInfoOverImage = temp->Attribute("onMouseOver");
+		}
+
+
 		if ( strcmp(id, "hide") == 0 )
 		{
 			temp->Attribute("x", &hideX );
@@ -2156,6 +2210,15 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 			hideImage = temp->Attribute("image");
 			hideOverImage = temp->Attribute("onMouseOver");
 		}
+
+		if (strcmp(id, "info") == 0)
+		{
+			temp->Attribute("x", &infobutX);
+			temp->Attribute("y", &infobutY);
+			infoButImage = temp->Attribute("image");
+			infoButOverImage = temp->Attribute("onMouseOver");
+		}
+
 
 		if (strcmp(id, "addriaa") == 0)
 		{
@@ -2470,13 +2533,21 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 
 	back = LoadPicture("images/back.png");
 
+	info = LoadPicture("images/info.png");
+
 	settingsback = LoadPicture("images/settings.png");
 
 	quit[0] = LoadPicture("images/" + quitImage);
 	quit[1] = LoadPicture("images/" + quitOverImage);
 
+	quitinfo[0] = LoadPicture("images/" + quitInfoImage);
+	quitinfo[1] = LoadPicture("images/" + quitInfoOverImage);
+
 	hide[0] = LoadPicture("images/" + hideImage);
 	hide[1] = LoadPicture("images/" + hideOverImage);
+
+	infobut[0] = LoadPicture("images/" + infoButImage);
+	infobut[1] = LoadPicture("images/" + infoButOverImage);
 
 	normalize[0] = LoadPicture("images/" + normalizeImage);
 	normalize[1] = LoadPicture("images/" + normalizeOverImage);
@@ -2613,7 +2684,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 
 	/*if (!BASS_RecordInit(-1))
 	{
-		MessageBox(0, "Recording failed!", "Sorry!", MB_ICONERROR | MB_OK);
+		MessageBoxA(0, "Recording failed!", "Sorry!", MB_ICONERROR | MB_OK);
 		return -1;
 	}*/
 
@@ -2693,6 +2764,14 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 				//RecorderDeviceRetrieve(-1, -1);
 				DrawSettingsScreen();
 			}
+			else if (spFrame == 3)
+			{
+				DrawInfoScreen();
+			}
+			if (KeyTrig(DIK_F1))
+			{
+				spFrame = 3;
+			}
 		
 			/////////////////////////////////////////////////////////////
 			
@@ -2751,28 +2830,42 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 			}
 
 #ifdef DEBUGSCREEN
-
-			SetColor(0, 0, 0, 255);
-
-			DrawPicture(px1, 0, 0, 200, 85);
-
-			DrawText(font, 0, 0, 100, 25, D3DCOLOR_RGBA(255, 128, 128, 255), "[debugscreen]");
-
-			DrawText(font, 25, 20, 150, 40, D3DCOLOR_RGBA(255, 255, 255, 255), "FPS: %0.3f sec", timeFps);
-
-			DrawText(font, 25, 40, 150, 60, D3DCOLOR_RGBA(255, 255, 255, 255), "Samples: %i", RecorderGetLastSamplesNumber());
-
-			bool trollorjoush = RecorderGetTrollOrJoushState();
-
-			D3DCOLOR clr = 0;
-			if (trollorjoush)
-				clr = D3DCOLOR_RGBA(0, 0, 255, 255);//SetColor(0, 0, 255, 255);
-			else
-				clr = D3DCOLOR_RGBA(255, 0, 0, 255);//SetColor(255, 0, 0, 255);
-
-			DrawText(font, 25, 60, 150, 80, clr, trollorjoush ? "Troll" : "Joush");
-
+			static bool drawdebugscreen = true;
+#else
+			static bool drawdebugscreen = false;
 #endif 
+
+			if (KeyPressed(DIK_LCONTROL) && KeyTrig(DIK_D))
+			{
+				drawdebugscreen = !drawdebugscreen;
+			}
+
+			if (drawdebugscreen)
+			{
+				SetColor(55, 55, 55, 255);
+
+				DrawPicture(px1, 0, 0, 200, 85);
+
+				DrawText(font, 0, 0, 200, 25, D3DCOLOR_RGBA(255, 128, 128, 255), "[debugscreen ctrl+d]");
+
+				DrawText(font, 0, 20, 200, 40, D3DCOLOR_RGBA(255, 255, 255, 255), "FPS: %0.3f sec", timeFps);
+
+				DrawText(font, 0, 40, 200, 60, D3DCOLOR_RGBA(255, 255, 255, 255), "Samples: %i", RecorderGetLastSamplesNumber());
+
+				int trollorjoush = RecorderGetTrollOrJoushState();
+
+				D3DCOLOR clr = 0;
+				if (trollorjoush == 1)
+					clr = D3DCOLOR_RGBA(0, 0, 255, 255);//SetColor(0, 0, 255, 255);
+				else
+					if (trollorjoush == -1)
+						clr = D3DCOLOR_RGBA(255, 0, 0, 255);//SetColor(255, 0, 0, 255);
+					else
+						if (trollorjoush == 0)
+							clr = D3DCOLOR_RGBA(0, 255, 0, 255);
+
+				DrawText(font, 0, 60, 200, 80, clr, (trollorjoush > 0) ? "Stab: Troll" : ((trollorjoush < 0) ? "Stab: Joush" : "Stab: Knight"));
+			}
 
 			SetBlendNormal();
 			ResetColor();
@@ -2787,7 +2880,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 			//
 			if (KeyPressed(DIK_ESCAPE))
 			{
-				PostQuitMessage(0);
+				if( spFrame == 1)
+					PostQuitMessage(0);
 			}
 
 			DWORD error = gaudio->GetError();
@@ -2804,7 +2898,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 						WriteToLog("Failed to retrieve the device with the default device choice");
 						static char errmessage[256];
 						sprintf(errmessage, "Device error: %i and failed to retrieve!", error);
-						MessageBox(mainWnd, errmessage, "Error", MB_OK);
+						MessageBoxA(mainWnd, errmessage, "Error", MB_OK);
 						PostQuitMessage(0);
 					}
 				}

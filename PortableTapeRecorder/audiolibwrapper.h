@@ -1,6 +1,13 @@
 #pragma once
 
+//#define RECUSEBASSLIB
+
+#ifdef RECUSEBASSLIB
 #include "bass/bass.h"
+#endif
+
+#include "PortYTrack/portytrack.h"
+
 #include <vector>
 #include <string>
 
@@ -55,6 +62,7 @@ public:
 	virtual DWORD GetError() { return error;  }
 };
 
+#ifdef RECUSEBASSLIB
 class BASSLibraryWrapper : public RecAudioLibrary {
 public:
 	HRECORD record;
@@ -74,7 +82,7 @@ public:
 	virtual bool EnumerateDevices();
 	virtual DWORD GetError();
 };
-
+#endif 
 
 class PortYTrackLibraryWrapper : public RecAudioLibrary {
 public:
