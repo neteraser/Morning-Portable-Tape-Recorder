@@ -88,7 +88,7 @@
       <AdditionalIncludeDirectories>C:\Program Files %28x86%29\Microsoft DirectX SDK %28June 2010%29\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <AdditionalOptions>d3d9.lib d3dx9.lib dinput8.lib dxguid.lib winmm.lib libmp3lame.lib MorningHiddenAudioProcessing.lib %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>d3d9.lib d3dx9.lib dinput8.lib dxguid.lib winmm.lib libmp3lame.lib MorningHiddenAudioProcessing.lib bass.lib %(AdditionalOptions)</AdditionalOptions>
       <AdditionalLibraryDirectories>$(ProjectDir)\lib\;$(DXSDK_DIR)\lib\x86\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>

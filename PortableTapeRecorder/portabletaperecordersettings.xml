@@ -23,9 +23,18 @@
 	<button id="settings" image="but_settings.png" onMouseOver="but_settings_over.png" x="500" y="25"/>
 	<button id="apply" image="but_apply.png" onMouseOver="but_apply_over.png" x="680" y="18"/>
 
-	<button id="reverb" image="but_reverb.png" onMouseOver="but_reverb_over.png" x="760" y="465"/>
-	<button id="superfi" image="but_superfi.png" onMouseOver="but_superfi_over.png" x="760" y="495"/>
+	<button id="reverb" image="but_reverb.png" onMouseOver="but_reverb_over.png" x="730" y="465"/>
+	<button id="superfi" image="but_superfi.png" onMouseOver="but_superfi_over.png" x="730" y="495"/>
 
+	<button id="liftup" image="but_liftup.jpg" onMouseOver="but_liftup_over.jpg" x="850" y="475"/>
+
+	<button id="cutto" image="selbut_cutto.jpg" onMouseOver="selbut_cutto_over.jpg" x="0" y="2"/>
+	
+	<button id="cutout" image="selbut_cutout.jpg" onMouseOver="selbut_cutout_over.jpg" x="62" y="2"/>	
+	
+	<button id="mute" image="selbut_mute.jpg" onMouseOver="selbut_mute_over.jpg" x="124" y="2"/>
+
+	<button id="autonote" image="selbut_autonote.jpg" onMouseOver="selbut_autonote_over.jpg" x="186" y="2"/>
 
 	<switch id="rec"
 		image1="but_rec.png" onMouseOver1="but_rec_over.png"

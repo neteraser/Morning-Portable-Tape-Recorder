@@ -1,6 +1,6 @@
 #pragma once
 
-//#define RECUSEBASSLIB
+#define RECUSEBASSLIB
 
 #ifdef RECUSEBASSLIB
 #include "bass/bass.h"

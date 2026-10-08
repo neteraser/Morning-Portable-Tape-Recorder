@@ -1,7 +1,0 @@
-﻿  dllmain.cpp
-  portytrack.cpp
-  Создание кода...
-C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(1424,5): warning MSB8012: TargetPath(D:\Projects\PortableTapeRecorder\Debug\PortYTrack.dll) не соответствует значению свойства выходного файла (D:\Projects\PortableTapeRecorder\PortableTapeRecorder\PortYTrackd.dll) для Linker. Это может привести к неправильной сборке проекта. Чтобы исправить это, убедитесь, что значения свойств $(OutDir), $(TargetName) и $(TargetExt) соответствуют значению, указанному в %(Link.OutputFile).
-C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Microsoft\VC\v180\Microsoft.CppBuild.targets(1426,5): warning MSB8012: TargetName(PortYTrack) не соответствует значению свойства выходного файла (PortYTrackd) для Linker. Это может привести к неправильной сборке проекта. Чтобы исправить это, убедитесь, что значения свойств $(OutDir), $(TargetName) и $(TargetExt) соответствуют значению, указанному в %(Link.OutputFile).
-     Создается библиотека D:\Projects\PortableTapeRecorder\\PortableTapeRecorder\lib\PortYTrackd.lib и объект D:\Projects\PortableTapeRecorder\\PortableTapeRecorder\lib\PortYTrackd.exp
-  PortYTrack.vcxproj -> D:\Projects\PortableTapeRecorder\Debug\PortYTrack.dll

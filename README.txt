@@ -45,3 +45,9 @@ Introducing the Debug Screen on which you can know whether your recorder is a tr
 Version 0.5.3 is introducing the first recording stabilizer, which is making less or more HDD rewriters depending on the state of your recorder. If your recorder is a troll, it makes less HDD rewrites, if it is a joush it makes more HDD rewrites.
 
 Bugfixing, and this is a pretty stable release.
+
+* v.0.6.0
+
+Added in the version 0.6.0 is selection of a region inside the recorded track. Now you can cut in, cut out and mute the track.
+
+Also introduced is a very important part of the original Columbia/RCA Records editor which is the AutoNote filter correcting the tempo of a track by automatically catching notes in your record and adjusting their length. You can check this does work nice.

@@ -26,7 +26,7 @@
 
 HWND mainWnd;
 
-#define RECORDER_VERSION_STRING "Version v.0.5.3"
+#define RECORDER_VERSION_STRING "Version v.0.6.0"
 
 const char* diskName = "PortableTapeRecorder";
 const char* diskDesc = "Portable Tape Recorder";
@@ -421,6 +421,14 @@ void SetBlendAdditive()
 
 void SetColor(uint r, uint g, uint b, uint a)
 {
+	if (r > 255)
+		r = 255;
+	if (g > 255)
+		g = 255;
+	if (b > 255)
+		b = 255;
+	if (a > 255)
+		a = 255;
 	d3dd->SetRenderState(D3DRS_TEXTUREFACTOR, D3DCOLOR_RGBA((uint)(r), (uint)(g), (uint)(b), (uint)(a)) );
 }
 
@@ -914,6 +922,7 @@ trackX = 25, trackY = 125, trackWidth = 750, trackHeight = 100,
 remasterX = 460, remasterY = 460,
 reverbX = 460, reverbY = 460,
 superfiX = 460, superfiY = 490,
+liftupX = 720, liftupY = 465,
 applyX = 680, applyY = 18,
 settingsX = 350, settingsY = 25,
 loopX = 180, loopY = 480,
@@ -921,7 +930,8 @@ onoffX = 400, onoffY = 10,
 regulatorX = 600, regulatorY = 465, regulatorDiameter = 60,
 waveformcolorX = 25, waveformcolorY = 110,
 bassX = 30, bassY = 480, portyX = 210, portyY = 480,
-delayslowX = 480, delayslowY = 480, delayfastX = 510, delayfastY = 480;
+delayslowX = 480, delayslowY = 480, delayfastX = 510, delayfastY = 480,
+cuttoX = 0, cuttoY = 0, cutoutX = 60, cutoutY = 0, muteX = 120, muteY = 0, autonoteX = 180, autonoteY = 0;
 
 double regulatorDefaultValue = 0.5;
 
@@ -946,6 +956,7 @@ undofxImage, undofxOverImage,
 remasterImage, remasterOverImage,
 reverbImage, reverbOverImage,
 superfiImage, superfiOverImage,
+liftUpImage, liftUpOverImage,
 remasterplayingImage, remasterplayingOverImage,
 meterImage,
 settingsImage, settingsOverImage,
@@ -958,7 +969,11 @@ regulatorImage, regulatorPtrImage, regulatorPressImage,
 bassLibImage, bassLibImageOn,
 portyLibImage, portyLibImageOn,
 delaySlowImage, delaySlowImageOn,
-delayFastImage, delayFastImageOn;
+delayFastImage, delayFastImageOn,
+cutToImage, cutToOverImage,
+cutOutImage, cutOutOverImage,
+muteImage, muteOverImage,
+autoNoteImage, autoNoteOverImage;
 
 
 std::string exportartist = "Tape Recorder";
@@ -988,6 +1003,12 @@ int remaster[2];
 int remasterPlaying[2];
 int reverb[2];
 int superfi[2];
+int liftup[2];
+int cutto[2];
+int cutout[2];
+int mute[2];
+int autonote[2];
+int scissors;
 int meter;
 int stop[2];
 int settingsimg[2];
@@ -1026,6 +1047,20 @@ float prevPointsY[4096];
 float pointsX[4096];
 int	pointsN = 0;
 
+int selection_begin = 0;
+int selection_end = 0;
+int selection_pos = 0;
+bool selected = false;
+bool selecting = false;
+
+////////////////////////////////////////////////////////////////////////////////
+
+#ifdef DEBUGSCREEN
+static bool drawdebugscreen = true;
+#else
+static bool drawdebugscreen = false;
+#endif 
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void DrawMainScreen()
@@ -1043,7 +1078,6 @@ void DrawMainScreen()
 			remastermode = 1;
 		}
 	}
-
 
 	///////////////////////////////////////////////////////////
 
@@ -1418,11 +1452,19 @@ void DrawMainScreen()
 		float curpos_rt = 0;
 		if (IsRecorderPlaying())
 		{
-			curpos_rt = timeGetTime() - streamrec.lastplaycallback_time;
-			curpos_rt /= 1000.0f;
-			curpos_rt *= 48000.0;
+			curpos_rt = (float)(timeGetTime() - streamrec.lastplaycallback_time);
+			if (curpos_rt > 100.0f)
+				curpos_rt = 100.0f;
+			curpos_rt *= 4.8f;
+			//curpos_rt *= 4800.0f;
 		}
-		curpos = (baserec.unipos - 4800 + curpos_rt) / samplesperpx;
+		curpos = (baserec.unipos /* - 4800*/ + curpos_rt) / samplesperpx;
+		if (curpos < 0)
+			curpos = 0;
+		if(zoomMode == 0 && IsRecorderIdling())
+		{
+			curpos = (float)(baserec.peakpos / (float)RECBUFSTANDARDSIZE) * trackWidth;
+		}
 		if (zoomMode == 1 && (IsRecorderIdling()))
 		{
 			curpos = ((float)baserec.peakpos / (float)(waveformlen * 48000)) * ((float)trackWidth);// / samplesperpx;
@@ -1494,6 +1536,7 @@ void DrawMainScreen()
 		DrawPicture(px1, trackX - 11, trackY - 5, 10, 10);
 		DrawPicture(px1, trackX + trackWidth + 2, trackY - 5, 10, 10);
 
+
 		for (int i = 0; i < trackWidth - 1; ++i)
 		{
 			int step = 1;
@@ -1514,6 +1557,8 @@ void DrawMainScreen()
 
 			DrawPicture(px1, trackX + i, trackY, 1, sampledb);
 		}
+
+		///////////////////////////////////////////////////////////
 		//
 		SetColor(0, 0, 0, 255);
 		DrawPicture(px1, trackX + curpos, trackY - trackHeight / 2, 1, trackHeight);
@@ -1614,6 +1659,7 @@ void DrawMainScreen()
 
 		if (MouseInACircle(regulatorX + regwidth / 2, regulatorY + regheight / 2, regulatorDiameter))
 		{
+			noButtonIsOver = false;
 			if (MouseL())
 			{
 				regulating = true;
@@ -1707,6 +1753,186 @@ void DrawMainScreen()
 		if (DrawButton(superfi, superfiX, superfiY))
 		{
 			RecorderSuperfi();
+		}
+
+		if (DrawButton(liftup, liftupX, liftupY))
+		{
+			LiftRec();
+		}
+
+		///////////////////////////////////////////////////////////
+		//if (!IsRecorderRegionSet())
+		//	selected = false;
+
+		if (zoomMode != 2)
+		{
+
+			int selection_height = (int)((float)trackHeight * baserec.peak);
+			if (selection_height > trackHeight)
+				selection_height = trackHeight;
+			if (selection_height < trackHeight / 4)
+				selection_height = trackHeight / 4;
+
+			if (selected)
+			{
+				if (!selecting) {
+					int trackxadj = trackX;
+
+					// hack
+					int calculatedwidth = 0;
+					calculatedwidth = autonoteX + pictures[autonote[0]].width;
+
+					if (trackxadj + selection_begin + calculatedwidth > trackX + trackWidth)
+					{
+						trackxadj -= calculatedwidth + selection_begin - selection_end;
+					}
+					if (DrawButton(cutto, trackxadj + cuttoX + selection_begin, trackY + selection_height + cuttoY))
+					{
+						RecorderCutToRegion();
+						selected = false;
+					}
+					if (DrawButton(cutout, trackxadj + cutoutX + selection_begin, trackY + selection_height + cutoutY))
+					{
+						RecorderCutOutRegion();
+						selected = false;
+					}
+					if (DrawButton(mute, trackxadj + muteX + selection_begin, trackY + selection_height + muteY))
+					{
+						RecorderMuteRegion();
+						selected = false;
+					}
+					if (DrawButton(autonote, trackxadj + autonoteX + selection_begin, trackY + selection_height + autonoteY))
+					{
+						RecorderApplyAutoNote();
+						selected = false;
+					}
+
+					DrawPicture(scissors, trackxadj + selection_begin, trackY + selection_height + pictures[mute[0]].height + 8);
+				}
+			}
+
+			//selected = true;
+			if (selecting)
+			{
+				disableWindowMovement = true;
+				int curselpos = mouseX - trackX;
+				if (curselpos < 0)
+					curselpos = 0;
+				if (curselpos >= trackWidth)
+					curselpos = trackWidth - 1;
+
+				if (curselpos < selection_pos)
+				{
+					selection_begin = curselpos;
+					selection_end = selection_pos;
+				}
+				else
+				{
+					selection_begin = selection_pos;
+					selection_end = curselpos;
+				}
+
+				if (!MouseL())
+				{
+					selecting = false;
+
+					int selbegin_samples = 0, selend_samples = 0;
+
+
+					selbegin_samples = samplesperpx * selection_begin;
+					selend_samples = samplesperpx * selection_end;
+					RecorderSetRegion(selbegin_samples, selend_samples);
+				}
+			}
+
+			static int prevZoomMode = 0;
+			if (selected && prevZoomMode != zoomMode)
+			{
+
+					// recalc on zoom change
+					int selbegin_samples;
+					int selend_samples;
+					RecorderGetRegion(selbegin_samples, selend_samples);
+					if (selection_end - selection_begin > 0)
+					{
+						selection_begin = selbegin_samples / samplesperpx;
+						selection_end = selend_samples / samplesperpx;
+						selection_pos = selection_begin;
+					}
+					else
+					{
+						selection_begin = selbegin_samples / samplesperpx;
+						selection_end = selection_begin;
+						selection_pos = selection_begin;
+					}
+			}
+			prevZoomMode = zoomMode;
+
+			if (MouseInBox_WH(trackX, trackY - selection_height, trackWidth, selection_height * 2) && !selecting && !mouseinaction)
+			{
+				if (MouseL())
+				{
+					selected = true;
+					selecting = true;
+					selection_pos = mouseX - trackX;
+					selection_begin = selection_pos;
+					selection_end = selection_pos;
+					RecorderResetRegion();
+				}
+				if (MouseDoubleClick())
+				{
+					selected = true;
+					selecting = false;
+					selection_pos = 0;
+					selection_begin = 0;
+					selection_end = trackWidth;
+					RecorderSetRegion(0, trackWidth * samplesperpx);
+				}
+			}
+			else
+			{
+				if (MouseClick() && noButtonIsOver)
+				{
+					selected = false;
+					RecorderResetRegion();
+				}
+			}
+			if (selected)
+			{
+				SetColor(255, 255, 255, 96);
+				DrawPicture(px1, trackX + selection_begin, trackY - selection_height, selection_end - selection_begin, selection_height * 2);
+				SetColor(255, 255, 255, 128);
+				DrawPicture(px1, trackX + selection_begin, trackY - selection_height, 1, selection_height * 2);
+				DrawPicture(px1, trackX + selection_end, trackY - selection_height, 1, selection_height * 2);
+				ResetColor();
+			}
+		}
+		/*else
+		{
+			if (selection_begin == selection_end)
+			{
+				selected = false;
+				selecting = false;
+			}
+		}*/
+
+		if (KeyTrig(DIK_E))
+		{
+			RecorderApplyAutoNote();
+		}
+
+		if (drawdebugscreen)
+		{
+			for (int i = 0; i < recpeaks.size(); ++i)
+			{
+				SetColor(recpeaks[i].energy * 255.0f * 10.0f, 0, 0, 64);
+				DrawPicture(px1, trackX + recpeaks[i].pos / samplesperpx, trackY - 50, 1, 100);
+			}
+			ResetColor();
+			if (MouseL())
+			{
+				recpeaks.clear();
+			}
 		}
 }
 
@@ -2269,6 +2495,46 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 			superfiOverImage = temp->Attribute("onMouseOver");
 		}
 
+		if (strcmp(id, "liftup") == 0)
+		{
+			temp->Attribute("x", &liftupX);
+			temp->Attribute("y", &liftupY);
+			liftUpImage = temp->Attribute("image");
+			liftUpOverImage = temp->Attribute("onMouseOver");
+		}
+
+		if (strcmp(id, "cutto") == 0)
+		{
+			temp->Attribute("x", &cuttoX);
+			temp->Attribute("y", &cuttoY);
+			cutToImage = temp->Attribute("image");
+			cutToOverImage = temp->Attribute("onMouseOver");
+		}
+
+		if (strcmp(id, "cutout") == 0)
+		{
+			temp->Attribute("x", &cutoutX);
+			temp->Attribute("y", &cutoutY);
+			cutOutImage = temp->Attribute("image");
+			cutOutOverImage = temp->Attribute("onMouseOver");
+		}
+
+		if (strcmp(id, "mute") == 0)
+		{
+			temp->Attribute("x", &muteX);
+			temp->Attribute("y", &muteY);
+			muteImage = temp->Attribute("image");
+			muteOverImage = temp->Attribute("onMouseOver");
+		}
+
+		if (strcmp(id, "autonote") == 0)
+		{
+			temp->Attribute("x", &autonoteX);
+			temp->Attribute("y", &autonoteY);
+			autoNoteImage = temp->Attribute("image");
+			autoNoteOverImage = temp->Attribute("onMouseOver");
+		}
+
 
 		temp = temp->NextSiblingElement("button");
 	}
@@ -2593,6 +2859,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 
 	meter = LoadPicture("images/" + meterImage);
 
+	scissors = LoadPicture("images/scissors.png");
+
 	stop[0] = LoadPicture("images/" + stopImage);
 	stop[1] = LoadPicture("images/" + stopOverImage);
 
@@ -2607,6 +2875,21 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 
 	superfi[0] = LoadPicture("images/" + superfiImage);
 	superfi[1] = LoadPicture("images/" + superfiOverImage);
+
+	liftup[0] = LoadPicture("images/" + liftUpImage);
+	liftup[1] = LoadPicture("images/" + liftUpOverImage);
+
+	cutto[0] = LoadPicture("images/" + cutToImage);
+	cutto[1] = LoadPicture("images/" + cutToOverImage);
+
+	cutout[0] = LoadPicture("images/" + cutOutImage);
+	cutout[1] = LoadPicture("images/" + cutOutOverImage);
+
+	mute[0] = LoadPicture("images/" + muteImage);
+	mute[1] = LoadPicture("images/" + muteOverImage);
+
+	autonote[0] = LoadPicture("images/" + autoNoteImage);
+	autonote[1] = LoadPicture("images/" + autoNoteOverImage);
 
 	loopon[0] = LoadPicture("images/" + loopOnImage);
 	loopon[1] = LoadPicture("images/" + loopOnOverImage);
@@ -2828,12 +3111,6 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 			{
 				mouseDownTime = 0;
 			}
-
-#ifdef DEBUGSCREEN
-			static bool drawdebugscreen = true;
-#else
-			static bool drawdebugscreen = false;
-#endif 
 
 			if (KeyPressed(DIK_LCONTROL) && KeyTrig(DIK_D))
 			{

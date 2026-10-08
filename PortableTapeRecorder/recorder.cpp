@@ -42,6 +42,9 @@ long lastpushedsamplesmore = 0;
 
 long lastpushedsamplesavrg = 0;
 
+int regionBegin = 0, regionEnd = 0;
+
+bool isRegionSet = false;
 
 void InitFolders()
 {
@@ -352,6 +355,8 @@ void InitRec(Record& rec)
 	ZeroMemory(rec.safebuf_after, sizeof(rec.safebuf_after));
 
 	RecorderSetCallbacks();
+
+	//LiftRec();
 }
 
 int recOrStop = 1;
@@ -462,7 +467,7 @@ void HelperProcessInverseRIAAFilter(Record& rec, RIAAFilter& filter)
 
 
 
-void PostProcessRec(Record& rec) {
+void PostProcessRec(Record& rec, bool dofadeout) {
 	PrepareRIAAFilter(baseriaafilter, 30, 150, 2000);
 	rec.peak = 0;
 	rec.peakpos = 0;
@@ -471,21 +476,24 @@ void PostProcessRec(Record& rec) {
 //	if (IsRecorderRemastering())
 //		remasterq = 0.01f;
 
-	for (int i = 0; i < rec.bufpos; ++i)
+	if (dofadeout)
 	{
-		float fsample = rec.recbuf[i];
-		float ffilter = 0;
-		ffilter = ProcessRIAAFilter(baseriaafilter, fsample);
-		ffilter *= 0.166f * (recQFX + 0.5f);
-		ffilter *= remasterq;
-		fsample = (fsample + ffilter);
-		// fadeout
-		if (i > (rec.bufpos - 24000))
-			fsample *= (rec.bufpos - i) / 24000.0;
+		for (int i = 0; i < rec.bufpos; ++i)
+		{
+			float fsample = rec.recbuf[i];
+			float ffilter = 0;
+			ffilter = ProcessRIAAFilter(baseriaafilter, fsample);
+			ffilter *= 0.166f * (recQFX + 0.5f);
+			ffilter *= remasterq;
+			fsample = (fsample + ffilter);
+			// fadeout
+			if (i > (rec.bufpos - 24000))
+				fsample *= (rec.bufpos - i) / 24000.0;
 
-		CheckRecorderPeak(fsample, i);
+			CheckRecorderPeak(fsample, i);
 
-		rec.recbuf[i] = fsample;
+			rec.recbuf[i] = fsample;
+		}
 	}
 }
 
@@ -516,6 +524,8 @@ void StartRec(Record& rec) {
 	rec.tapepolarized = fopen(getProgramFileName("tape_polarized.bin"), "wb");
 
 	noRecDevice = false;
+
+	RecorderResetRegion();
 
 	gaudio->Rec();
 
@@ -557,6 +567,8 @@ void AddRIAAToRec(Record& rec)
 
 float RecCalculatePeak(Record& rec, int begin, int end)
 {
+	rec.peakpos = 0;
+	rec.peak = 0.0f;
 	if (begin < 0)
 		return 0.0f;
 	if (begin >= rec.bufpos)
@@ -642,6 +654,27 @@ void LimitRec(Record& rec)
 	rec.peak = fmaxv;
 }
 
+void LiftRec()
+{
+	FILE* file = fopen(getProgramFileName("tape.bin"), "rb");
+	if (!file)
+		return;
+	fseek(file, 0, SEEK_END);
+	fpos_t fpos;
+	fgetpos(file, &fpos);
+	int fsize = (int)(fpos / sizeof(short));
+	fclose(file);
+
+	ZeroMemory(baserec.recbuf, RECBUFSTANDARDSIZE * sizeof(float));
+
+	baserec.bufpos = fsize;
+	baserec.writepos = fsize;
+	baserec.playpos = 0;
+
+	ReadRec();
+
+	PostProcessRec(baserec);
+}
 
 void ReadRec()
 {
@@ -655,6 +688,9 @@ void ReadRec()
 		baserec.tape = fopen(getProgramFileName("tape.bin"), "rb");
 		baserec.tapepolarized = fopen(getProgramFileName("tape_polarized.bin"), "rb");
 	}
+
+	if (baserec.tape == 0)
+		return;
 
 	int readpos = 0;
 	//baserec.peak = 0;
@@ -746,6 +782,11 @@ void StopPlayingRec()
 
 	streamrec.playpos = 0;
 	baserec.unipos = 0;
+	if (isRegionSet)
+	{
+		streamrec.playpos = regionBegin;
+		baserec.unipos = regionBegin;
+	}
 	streamrec.breakplay = FALSE;
 
 	gaudio->Stop();
@@ -779,11 +820,17 @@ bool RecorderPullData(float* buffer, int length)
 
 	int newplaylen = (int)roundf((float)length * (float)recspeedupsamples / 256.0f);
 
-	if (streamrec.playpos + newplaylen >= streamrec.bufpos)
+	int streamend = streamrec.bufpos;
+	if (isRegionSet)
+		streamend = regionEnd;
+
+	if (streamrec.playpos + newplaylen >= streamend)
 	{
 		if (playloop && remastermode != 0)
 		{
 			streamrec.playpos = 0;
+			if (isRegionSet)
+				streamrec.playpos = regionBegin;
 		}
 		else
 		{
@@ -840,6 +887,12 @@ void PlayRec()
 	baserec.unipos = 0;
 	streamrec.lastplaycallback_time = timeGetTime();
 	streamrec.playcallback_dt = 4800;
+
+	if (isRegionSet)
+	{
+		streamrec.playpos = regionBegin;
+		baserec.unipos = regionBegin;
+	}
 
 	gaudio->Play();
 }
@@ -1091,8 +1144,8 @@ void WriteRec(bool forcerec)
 			int wdif = baserec.bufpos - baserec.writepos;
 			if (wdif < wlen)
 				wlen = wdif;
-			if (wlen > RECWRITECHUNK)
-				wlen = RECWRITECHUNK;
+			//if (wlen > RECWRITECHUNK)
+			//	wlen = RECWRITECHUNK;
 
 			PreprocessRec(baserec, wlen);
 			
@@ -1387,6 +1440,8 @@ void RecorderUpdate(float dt)
 		recDeviceRecTime = 0;
 		masterDevicePlayTime = 0;
 		baserec.unipos = 0;
+		if (isRegionSet)
+			baserec.unipos = regionBegin;
 		ResetDummySinus();
 		checkzeroinput = 0.0f;
 	}
@@ -1466,6 +1521,8 @@ void StartRemaster()
 	baserec.tape = fopen(getProgramFileName("tape_remaster.bin"), "wb");
 
 	noRecDevice = false;
+
+	RecorderResetRegion();
 
 	//BASS_RecordFree();
 
@@ -1944,3 +2001,477 @@ int RecorderGetTrollOrJoushState()
 		state = -1;
 	return state;
 }
+
+void RecorderSetRegion(int begin, int end)
+{
+	if (begin < 0)
+		begin = 0;
+	if (begin >= baserec.bufpos)
+		begin = baserec.bufpos - 1;
+	if (end == begin)
+		end = baserec.bufpos;
+	if (end > baserec.bufpos)
+		end = baserec.bufpos;
+	regionBegin = begin;
+	regionEnd = end;
+	if (IsRecorderPlaying())
+		streamrec.playpos = begin;
+	isRegionSet = true;
+	RecCalculatePeak(baserec, begin, end);
+}
+
+void RecorderResetRegion()
+{
+	regionBegin = 0;
+	regionEnd = baserec.bufpos;
+	isRegionSet = false;
+	RecCalculatePeak(baserec, 0, -1);
+}
+
+void RecorderGetRegion(int& begin, int& end)
+{
+	begin = regionBegin;
+	end = regionEnd;
+}
+
+void RecorderCutToRegion()
+{
+	if (!isRegionSet)
+		return;
+
+	if (regionEnd - regionBegin == 0)
+		return;
+
+	if (undolevel < RECMAXUNDOLEVEL)
+		prevrec[undolevel] = baserec;
+	else
+		return;
+
+	int samplelen = (regionEnd - regionBegin);
+	
+	ZeroMemory(baserec.recbuf, RECBUFSTANDARDSIZE * sizeof(float));
+	CopyMemory(baserec.recbuf, prevrec[undolevel].recbuf + regionBegin, samplelen * sizeof(float));
+
+	streamrec.playpos = 0;
+	baserec.unipos = 0;
+	baserec.bufpos = samplelen;
+	
+	RecorderResetRegion();
+
+	undolevel += 1;
+}
+
+void RecorderCutOutRegion()
+{
+	if (!isRegionSet)
+		return;
+	
+	if (regionEnd - regionBegin == 0)
+		return;
+
+	if (undolevel < RECMAXUNDOLEVEL)
+		prevrec[undolevel] = baserec;
+	else
+		return;
+
+	ZeroMemory(baserec.recbuf, RECBUFSTANDARDSIZE * sizeof(float));
+	CopyMemory(baserec.recbuf, prevrec[undolevel].recbuf, (regionBegin) * sizeof(float));
+	CopyMemory(baserec.recbuf + regionBegin, prevrec[undolevel].recbuf + regionEnd, (baserec.bufpos - regionEnd) * sizeof(float));
+
+	streamrec.playpos = 0;
+	baserec.unipos = 0;
+	baserec.bufpos -= (regionEnd - regionBegin);
+
+	RecorderResetRegion();
+
+	undolevel += 1;
+}
+
+void RecorderMuteRegion()
+{
+	if (!isRegionSet)
+		return;
+
+	if (regionEnd - regionBegin == 0)
+		return;
+
+	if (undolevel < RECMAXUNDOLEVEL)
+		prevrec[undolevel] = baserec;
+	else
+		return;
+
+	for (int i = regionBegin; i < regionEnd; ++i)
+		baserec.recbuf[i] = 0.0f;
+
+	RecorderResetRegion();
+
+	undolevel += 1;
+}
+
+bool IsRecorderRegionSet()
+{
+	return isRegionSet;
+}
+
+//#define RECAUTONOTEBPMMAX (12000)
+#define RECAUTONOTEBPM (12000)
+#define RECAUTONOTECHUNKINBPM(bpm) (48000 / ((bpm) / 60))
+#define RECAUTONOTECHUNK (RECAUTONOTECHUNKINBPM(RECAUTONOTEBPM))
+// <-- hardwarely correct for your ordinary ADC
+
+float autonoteoriginalpeak = 1.0f;
+
+float silence = 0.0f;
+int silencepos = 0;
+
+float HelperCalculateSilence(int begin, int end, bool plusorminus = true)
+{
+	float fvmin = 1.0f;
+	if (plusorminus)
+		silencepos = begin;
+	else
+		silencepos = end;
+	for(int i=begin; i < end; ++i)
+	{
+		float fv = fabs(baserec.recbuf[i]);
+		float fvprev, fvnext;
+		if (i - 1 >= 0)
+			fvprev = fabs(baserec.recbuf[i - 1]);
+		else
+			fvprev = fv;
+		if (i + 1 < baserec.bufpos)
+			fvnext = fabs(baserec.recbuf[i + 1]);
+		else
+			fvnext = fv;
+		float diff = fv - (fvprev + fvnext) * 0.5f;
+		if (diff > 0.0f && fv < fvmin && (fv > 0.0001f * autonoteoriginalpeak))
+		{
+			fvmin = fv;
+			silencepos = i;
+		}
+	}
+	silence = fvmin;
+	//WriteToLog("Silence pos: %i", end - silencepos);
+	float diff=0.0f;
+	if(plusorminus)
+		diff = (baserec.peak - fvmin) / autonoteoriginalpeak * (float)(end - silencepos) / (float)(end - begin);
+	else
+		diff = (baserec.peak - fvmin) / autonoteoriginalpeak * (float)(silencepos - begin) / (float)(end - begin) ;
+	if (diff < 0.0f)
+		diff = 0.0f;
+	return diff;
+}
+
+int bpmtable[16] =
+{
+	RECAUTONOTECHUNKINBPM(600),
+	RECAUTONOTECHUNKINBPM(900),
+	RECAUTONOTECHUNKINBPM(1200),
+	RECAUTONOTECHUNKINBPM(1500),
+	RECAUTONOTECHUNKINBPM(1800),
+	RECAUTONOTECHUNKINBPM(2200),
+	RECAUTONOTECHUNKINBPM(2500),
+	RECAUTONOTECHUNKINBPM(2800),
+	RECAUTONOTECHUNKINBPM(3200),
+	RECAUTONOTECHUNKINBPM(4800),
+	RECAUTONOTECHUNKINBPM(5000),
+	RECAUTONOTECHUNKINBPM(6200),
+	RECAUTONOTECHUNKINBPM(7500),
+	RECAUTONOTECHUNKINBPM(8000),
+	RECAUTONOTECHUNKINBPM(9600),
+	RECAUTONOTECHUNKINBPM(12000)
+};
+
+float CaluclatePeakBreath(int peakpos, int& breathbegin, int& breathend, int bpmdivider = 1)
+{
+	if (peakpos < 0)
+	{
+		breathbegin = 0;
+		breathend = 0;
+		return 0.0f;
+	}
+	if (peakpos > baserec.bufpos - 1)
+	{
+		breathbegin = 0;
+		breathend = 0;
+		return 0.0f;
+	}
+
+/*if (bpmdivider > 16)
+	{
+		breathbegin = 0;
+		breathend = 0;
+		return 0.0f;
+	}
+*/
+	if (bpmdivider < 0)
+		bpmdivider = 0;
+	if (bpmdivider > 15)
+		bpmdivider = 15;
+	int chunksize = bpmtable[bpmdivider];
+	if (chunksize < RECAUTONOTECHUNKINBPM(12000))
+		chunksize = RECAUTONOTECHUNKINBPM(12000);
+
+	breathbegin = peakpos - chunksize;
+	if (breathbegin < 0)
+		breathbegin = 0;
+
+	float minplus = HelperCalculateSilence(breathbegin, peakpos, true);
+	breathbegin = silencepos;
+	if (breathbegin < 0)
+		breathbegin = 0;
+
+	breathend = peakpos + chunksize;
+	if (breathend > baserec.bufpos)
+		breathend = baserec.bufpos;
+
+	float minminus = HelperCalculateSilence(peakpos, breathend, false);
+	breathend = silencepos;
+	if (breathend > baserec.bufpos)
+		breathend = baserec.bufpos;
+
+	if (minplus < 0.0f)
+		minplus = 0.0f;
+
+	if (minminus < 0.0f)
+		minminus = 0.0f;
+
+	return (minplus * 0.6f + minminus * 0.4f) * 0.5f;
+}
+
+std::vector<AutoNote> recpeaks;
+int recursionlevelmax = 0;
+
+void RecursiveAutoNoteHelper(int& recursionlevel, int begin, int end)
+{
+	if (begin < 0)
+		return;
+	if (begin > baserec.bufpos - 1)
+		return;
+	if (end > baserec.bufpos)
+		return;
+	if (end <= 0)
+		return;
+	if (end <= begin)
+		return;
+	if (recursionlevel > 31)
+		return;
+	RecCalculatePeak(baserec, begin, end);
+	if (baserec.peak / autonoteoriginalpeak < 0.005f)
+		return;
+	//WriteToLog("Peak: %.02f", baserec.peak);
+	int breathbegin, breathend;
+	float energy = CaluclatePeakBreath(baserec.peakpos, breathbegin, breathend, (int)std::roundf((float)recursionlevel));
+	if (breathend == 0 && breathbegin == 0)
+		return;
+
+	AutoNote anote;
+	anote.pos = baserec.peakpos;
+	anote.energy = energy;
+	recpeaks.push_back(anote);
+
+	recursionlevel += 1;
+	int reclevel = recursionlevel;
+	RecursiveAutoNoteHelper(recursionlevel, begin, breathbegin);
+	recursionlevel = reclevel;
+	RecursiveAutoNoteHelper(recursionlevel, breathend, end);
+	if (recursionlevel > recursionlevelmax)
+		recursionlevelmax = recursionlevel;
+	recursionlevel -= 1;
+}
+
+//Record temprec;
+
+void RecStretchChunk(int begin, int end, int newsize, float emphasis = 0.0f)
+{
+	for (int i = 0; i < newsize; ++i)
+	{
+		float src_idx = (float) (i) * (float)(end - begin) / (float)newsize;
+		float fv = baserec.recbuf[(int)std::roundf(src_idx) + begin];
+		float ev = (float)i / ((float)newsize / 2.0f);
+		if (ev > 0.8f)
+		{
+			ev = (2.0f - ev) / 1.2f;
+		}
+		ev *= emphasis;
+		temprec.recbuf[temprec.bufpos++] = fv - fv * emphasis;
+	}
+}
+
+void RecorderFixAutoNote()
+{
+	if (recpeaks.size() < 8)
+		return;
+
+	std::sort(recpeaks.begin(), recpeaks.end());
+	std::vector<AutoNote> cleanup;
+
+	long avrg = 0;
+	long count = 0;
+	int prevchunk = recpeaks[0].pos;
+	for (int i = 0; i < recpeaks.size(); ++i)
+	{
+		int size = recpeaks[i].pos - prevchunk;
+		if (size >= RECAUTONOTECHUNKINBPM(12000))
+		{
+			avrg += size;
+			count += 1;
+			AutoNote anote;
+			anote.pos = recpeaks[i].pos;
+			anote.energy = recpeaks[i].energy;
+			cleanup.push_back(anote);
+		}
+		prevchunk = recpeaks[i].pos;
+	}
+	//avrg += baserec.bufpos - prevchunk;
+	//count += 1;
+	//cleanup.push_back(baserec.bufpos);
+	if (cleanup.size() < 8)
+		return;
+
+	avrg = avrg / count;
+	WriteToLog("AutoNote average chunk: %i", avrg);
+
+	recpeaks = cleanup;
+
+	temprec = baserec;
+	ZeroMemory(temprec.recbuf, RECBUFSTANDARDSIZE * sizeof(float));
+	temprec.bufpos = 0;
+	cleanup.clear();
+	prevchunk = recpeaks[0].pos;
+	RecStretchChunk(0, prevchunk, prevchunk);
+
+	float hardness = 0.0f;
+	//float acoeff, bcoeff;
+	//acoeff = ( ((float)RECAUTONOTECHUNK/ (float)avrg) - 1.0f ) * 0.1f * 0.022f; // 600/900 : ~0.0008
+	//bcoeff = (1.0f - (float)avrg / (float)RECAUTONOTECHUNK) * 0.1f * 0.47f;    //  900/600 : ~0.00235
+	//hardness = fabs( fabs(bcoeff) - fabs(acoeff) ) * 0.1f;
+	//hardness -= 0.001f;
+	//hardness *= (RECAUTONOTEBPM / 1200);
+	hardness = 0.01f;
+	hardness *= recQFX * 2.0f;
+	WriteToLog("AutoNote hardness: %f", hardness);
+	if (hardness > 0.02f)
+	{
+		hardness = 0.02f;
+		WriteToLog("Clamping hardness to 0.02f");
+	}
+
+	float prevenergy = 1.0f;
+
+	float avrgenergy = 0;
+
+	for (int i = 1; i < recpeaks.size(); ++i)
+	{
+		int size = recpeaks[i].pos - prevchunk;
+		//	if (size > avrg / 2)
+	//		{
+		int newavrg = avrg;
+		/*if (size > avrg)
+		{
+			int tacts = (size / avrg);
+			newavrg *= tacts;//(float)(tacts - tacts % 2);
+		}*/
+
+		float energy = recpeaks[i].energy; // 0.0 -- 1.0// 0.0 -- 1.0
+		//energy = 0.01 + energy * 0.066f;
+		energy = sqrtf(energy);// *energy;
+		//energy *= 0.33f;
+		//energy += 0.1f;
+		//if (energy > 0.166f)
+		//	energy = 0.166f;
+//		energy = 0.1f - energy;
+
+		float newhardness;
+		newhardness = hardness * energy;
+		int newsize = (int)std::roundf((float)newavrg * newhardness + (float)size * (1.0f - newhardness ));
+		RecStretchChunk(prevchunk, recpeaks[i].pos, newsize, energy * 0.00234f);
+
+		//WriteToLog("AutoNote stretch: %i, AutoNote newhardness: %f", newsize - size, newhardness);
+		//		}
+		avrgenergy += recpeaks[i].energy;
+
+		prevchunk = recpeaks[i].pos;
+		prevenergy = recpeaks[i].energy;
+		AutoNote anote;
+		anote.pos = temprec.bufpos;
+		anote.energy = recpeaks[i].energy;
+		cleanup.push_back(anote);
+	}
+	RecStretchChunk(prevchunk, baserec.bufpos, baserec.bufpos - prevchunk);
+
+	avrgenergy /= recpeaks.size() - 1;
+	WriteToLog("AutoNote average energy: %f", avrgenergy);
+
+	int orgsize = baserec.bufpos;
+
+	baserec = temprec;
+
+	/*ZeroMemory(temprec.recbuf, RECBUFSTANDARDSIZE * sizeof(float));
+		temprec.bufpos = 0;
+
+		RecStretchChunk(0, baserec.bufpos, orgsize);
+
+		baserec = temprec;
+	*/
+	recpeaks = cleanup;
+}
+
+void RecorderApplyAutoNote()
+{
+	if (undolevel < RECMAXUNDOLEVEL)
+		prevrec[undolevel++] = baserec;
+	else
+		return;
+
+//	NormalizeRec(baserec);
+
+	WriteToLog("Calculating autonote");
+
+	WriteToLog("Autonote BPM: %i, Autonote chunk: %i", RECAUTONOTEBPM, RECAUTONOTECHUNK);
+
+	int begin = 0, end = -1;
+	if (isRegionSet)
+	{
+		begin = regionBegin;
+		end = regionEnd;
+	}
+
+	if (begin < 0)
+		begin = 0;
+	if (end > baserec.bufpos)
+		end = baserec.bufpos;
+	if (end - begin < RECAUTONOTECHUNK * 2)
+	{
+		undolevel -= 1;
+		return;
+	}
+
+	RecCalculatePeak(baserec, begin, end);
+
+	autonoteoriginalpeak = baserec.peak;
+
+	recpeaks.clear();
+
+	int orgpeakpos = baserec.peakpos;
+
+	int recursionlevel = 0;
+	recursionlevelmax = 0;
+	RecursiveAutoNoteHelper(recursionlevel, begin, orgpeakpos);
+
+	WriteToLog("Left AutoNote recursion level: %i", recursionlevelmax);
+
+	recursionlevel = 0;
+	recursionlevelmax = 0;
+
+	RecursiveAutoNoteHelper(recursionlevel, orgpeakpos, end);
+
+	WriteToLog("Right AutoNote recursion level: %i", recursionlevelmax);
+	
+	RecorderFixAutoNote();
+
+	//recpeaks.clear();
+
+	RecorderResetRegion();
+}
+

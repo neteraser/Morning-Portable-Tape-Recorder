@@ -196,6 +196,7 @@ __inline float CatmullRom1D(float t, float p0, float p1, float p2, float p3)
 
 void InitFolders();
 void InitRec(Record& rec);
+void LiftRec();
 void StartRec(Record& rec);
 
 struct RIAAFilter {
@@ -218,7 +219,7 @@ void RecProcess256Samples();
 
 void PreprocessRec(Record& rec, int preprocesslen);
 
-void PostProcessRec(Record& rec);
+void PostProcessRec(Record& rec, bool dofadeout = true);
 
 void NormalizeRec(Record& rec);
 
@@ -341,3 +342,33 @@ void RecorderSuperfi();
 int RecorderGetLastSamplesNumber();
 
 int RecorderGetTrollOrJoushState();
+
+void RecorderSetRegion(int region_begin, int region_end);
+
+void RecorderGetRegion(int& begin, int& end);
+
+bool IsRecorderRegionSet();
+
+void RecorderResetRegion();
+
+void RecorderCutToRegion();
+
+void RecorderCutOutRegion();
+
+void RecorderMuteRegion();
+
+class AutoNote
+{
+public:
+	int pos;
+	float energy;
+
+	bool const operator < (const AutoNote& n1)
+	{
+		return pos < n1.pos;
+	}
+};
+
+void RecorderApplyAutoNote();
+
+extern std::vector<AutoNote> recpeaks;
