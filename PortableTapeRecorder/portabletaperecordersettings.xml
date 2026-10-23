@@ -8,6 +8,7 @@
 	<button id="quit" image="but_quit.png" onMouseOver="but_quit_over.png" x="850" y="50"/>
 	<button id="hide" image="but_hide.png" onMouseOver="but_hide_over.png" x="815" y="50"/>
 	<button id="info" image="but_info.png" onMouseOver="but_info_over.png" x="765" y="50"/>
+	<button id="spec" image="but_spec.png" onMouseOver="but_spec_over.png" x="730" y="50"/>
 	<button id="quitinfo" image="but_quitinfo.png" onMouseOver="but_quitinfo_over.png" x="780" y="480"/>
 
 	
@@ -24,9 +25,12 @@
 	<button id="apply" image="but_apply.png" onMouseOver="but_apply_over.png" x="680" y="18"/>
 
 	<button id="reverb" image="but_reverb.png" onMouseOver="but_reverb_over.png" x="730" y="465"/>
-	<button id="superfi" image="but_superfi.png" onMouseOver="but_superfi_over.png" x="730" y="495"/>
+	<button id="superfi" image="but_superfi.png" onMouseOver="but_superfi_over.png" x="730" y="485"/>
+	<button id="master" image="but_render.png" onMouseOver="but_render_over.png" x="730" y="505"/>
 
-	<button id="liftup" image="but_liftup.jpg" onMouseOver="but_liftup_over.jpg" x="850" y="475"/>
+	<button id="savescreen" image="but_savescreen.png" onMouseOver="but_savescreen_over.png" x="380" y="495"/>
+
+	<button id="liftup" image="but_liftup.jpg" onMouseOver="but_liftup_over.jpg" x="850" y="468"/>
 
 	<button id="cutto" image="selbut_cutto.jpg" onMouseOver="selbut_cutto_over.jpg" x="0" y="2"/>
 	
@@ -35,6 +39,10 @@
 	<button id="mute" image="selbut_mute.jpg" onMouseOver="selbut_mute_over.jpg" x="124" y="2"/>
 
 	<button id="autonote" image="selbut_autonote.jpg" onMouseOver="selbut_autonote_over.jpg" x="186" y="2"/>
+
+	<button id="capnoise" image="selbut_capnoise.png" onMouseOver="selbut_capnoise_over.png" x="62" y="20"/>
+
+	<button id="remnoise" image="selbut_remnoise.png" onMouseOver="selbut_remnoise_over.png" x="124" y="20"/>
 
 	<switch id="rec"
 		image1="but_rec.png" onMouseOver1="but_rec_over.png"
@@ -69,7 +77,8 @@
 
 	<switch id="export" 
 			image1="but_exportwav.png" onMouseOver1="but_exportwav_over.png" 
-			image2="but_exportmp3.png" onMouseOver2="but_exportmp3_over.png" 
+			image2="but_exportmp3.png" onMouseOver2="but_exportmp3_over.png"
+			image3="but_import.png" onMouseOver3="but_import_over.png"
 			x="215" y="495"/>
 
 	<regulator id="RQ" image="regulator.png" onPress="regulator_press.png" imagePtr="regulatorptr.png" x="650" y="465" diameter="60" defaultvalue="0.5" />

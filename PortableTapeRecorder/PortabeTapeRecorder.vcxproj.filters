@@ -31,6 +31,7 @@
     </ClCompile>
     <ClCompile Include="audiolibwrapper.cpp" />
     <ClCompile Include="morningreverb.cpp" />
+    <ClCompile Include="morningnoisereduction.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="xml\tinystr.H">
@@ -48,6 +49,7 @@
     <ClInclude Include="main.h" />
     <ClInclude Include="audiolibwrapper.h" />
     <ClInclude Include="morningreverb.h" />
+    <ClInclude Include="morningnoisereduction.h" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="icon1.ico" />

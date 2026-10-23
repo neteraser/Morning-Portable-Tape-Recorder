@@ -70,6 +70,16 @@ void InitFolders()
 	_mkdir(gfilename.c_str());
 	gfilename += "\\output\\";
 	_mkdir(gfilename.c_str());
+
+	gfilename = getenv("USERPROFILE");
+	gfilename += "\\Documents\\";
+	if (GetFileAttributes(gfilename.c_str()) == INVALID_FILE_ATTRIBUTES)
+	{
+		_mkdir(gfilename.c_str());
+	}
+	gfilename += "\\PortableTapeRecorder\\";
+	_mkdir(gfilename.c_str());
+
 }
 
 const char* getProgramFileName(const char* filename)
@@ -92,6 +102,14 @@ const char* getMusicFileName(const char* filename)
 {
 	gfilename = getenv("USERPROFILE");
 	gfilename += "\\Music\\PortableTapeRecorder\\";
+	gfilename += filename;
+	return gfilename.c_str();
+}
+
+const char* getDocumentsFileName(const char* filename)
+{
+	gfilename = getenv("USERPROFILE");
+	gfilename += "\\Documents\\PortableTapeRecorder\\";
 	gfilename += filename;
 	return gfilename.c_str();
 }
@@ -476,24 +494,25 @@ void PostProcessRec(Record& rec, bool dofadeout) {
 //	if (IsRecorderRemastering())
 //		remasterq = 0.01f;
 
-	if (dofadeout)
+	for (int i = 0; i < rec.bufpos; ++i)
 	{
-		for (int i = 0; i < rec.bufpos; ++i)
+		float fsample = rec.recbuf[i];
+		float ffilter = 0;
+		ffilter = ProcessRIAAFilter(baseriaafilter, fsample);
+		ffilter *= 0.0166f * (recQFX + 0.5f);
+		ffilter *= remasterq;
+		fsample = (fsample + ffilter) * 0.5f;
+		
+		// fadeout
+		if (dofadeout)
 		{
-			float fsample = rec.recbuf[i];
-			float ffilter = 0;
-			ffilter = ProcessRIAAFilter(baseriaafilter, fsample);
-			ffilter *= 0.166f * (recQFX + 0.5f);
-			ffilter *= remasterq;
-			fsample = (fsample + ffilter);
-			// fadeout
 			if (i > (rec.bufpos - 24000))
 				fsample *= (rec.bufpos - i) / 24000.0;
-
-			CheckRecorderPeak(fsample, i);
-
-			rec.recbuf[i] = fsample;
 		}
+
+		CheckRecorderPeak(fsample, i);
+
+		rec.recbuf[i] = fsample;
 	}
 }
 
@@ -552,7 +571,7 @@ void AddRIAAToRec(Record& rec)
 	else
 		return;
 
-	PrepareRIAAFilter(baseriaafilter, 68, 200, 2000);
+	PrepareRIAAFilter(baseriaafilter, 68, 200, 2000); //  contemporary: 15, 25, 250 check this out, the central frequency must be 6-8khz
 	for (int i = 0; i < rec.bufpos; ++i)
 	{
 		float fsample = rec.recbuf[i];
@@ -564,6 +583,44 @@ void AddRIAAToRec(Record& rec)
 		rec.recbuf[i] = fsample;
 	}
 }
+
+void MasterRec(Record& rec)
+{
+	if (undolevel < RECMAXUNDOLEVEL)
+		prevrec[undolevel++] = baserec;
+	else
+		return;
+
+	PrepareInverseRIAAFilter(baseinvriaafilter, 15, 25, 150);// check this out, the central frequency must be 6 - 8khz
+	for (int i = 0; i < rec.bufpos; ++i)
+	{
+		float fsample = rec.recbuf[i];
+		float friaa = 0;
+		friaa = ProcessInverseRIAAFilter(baseinvriaafilter, fsample);
+		friaa *= 0.033f * recQFX;
+		fsample = (fsample + friaa) / 2.0f;
+		CheckRecorderPeak(fsample, i);
+		rec.recbuf[i] = fsample;
+	}
+
+	RecorderReRender();
+
+	PrepareRIAAFilter(baseriaafilter, 15, 25, 150);// check this out, the central frequency must be 6 - 8khz
+	for (int i = 0; i < rec.bufpos; ++i)
+	{
+		float fsample = rec.recbuf[i];
+		float friaa = 0;
+		friaa = ProcessRIAAFilter(baseriaafilter, fsample);
+		friaa *= 0.33f * recQFX;
+		fsample = (fsample + friaa) / 2.0f;
+		CheckRecorderPeak(fsample, i);
+		rec.recbuf[i] = fsample;
+	}
+
+	//RecorderReRender();
+
+}
+
 
 float RecCalculatePeak(Record& rec, int begin, int end)
 {
@@ -1444,6 +1501,10 @@ void RecorderUpdate(float dt)
 			baserec.unipos = regionBegin;
 		ResetDummySinus();
 		checkzeroinput = 0.0f;
+	}
+	if (IsRecorderIdling())
+	{
+		RecCalculatePeak(baserec);
 	}
 	//BASS_Update(100);
 }
@@ -2475,3 +2536,156 @@ void RecorderApplyAutoNote()
 	RecorderResetRegion();
 }
 
+bool RecorderIsTrackEmpty()
+{
+	for(int i=0; i < baserec.bufpos; ++i)
+	{
+		if (fabs(baserec.recbuf[i]) > 1.0 / 32769.0)
+		{
+			return false;
+		}
+	}
+	ZeroMemory(baserec.recbuf, RECBUFSTANDARDSIZE * sizeof(float));
+	baserec.bufpos = 0;
+	baserec.writepos = 0;
+	baserec.unipos = 0;
+	baserec.playpos = 0;
+	return true;
+}
+
+bool OpenRec(const char* filename)
+{
+	AudioFile<float> af;
+	af.setAudioBufferSize(1, RECBUFSTANDARDSIZE);
+
+	if (!af.load(filename))
+	{
+		WriteToLog("Failed to load a record: %s", filename);
+		return false;
+	}
+	if (af.getNumChannels() == 0)
+	{
+		WriteToLog("Failed to load a record: %s", filename);
+		return false;
+	}
+	
+	af.setSampleRate(48000);
+
+	int lenb = af.getNumSamplesPerChannel();
+	if (lenb <= 0)
+	{
+		return false;
+	}
+	if (lenb > RECBUFSTANDARDSIZE)
+		lenb = RECBUFSTANDARDSIZE;
+
+	ZeroMemory(baserec.recbuf, RECBUFSTANDARDSIZE * sizeof(float));
+
+	for (int i = 0; i < lenb; )
+	{
+//		int csize = 4096;
+//		int dif = lenb - i;
+//		if (dif < csize)
+//			csize = dif;
+		baserec.recbuf[i] = FixDeviceBit(af.samples[0][i]);
+		//RecorderPushData(&af.samples[0][0] + i, csize);
+		i += 1;
+	}
+
+	baserec.breakrec = FALSE;
+	baserec.peak = 0.0f;
+	baserec.peakpos = 0;
+
+	baserec.bufpos = lenb;
+	baserec.writepos = lenb;
+	baserec.unipos = 0;
+	baserec.playpos = 0;
+	baserec.temppos = 0;
+
+	PostProcessRec(baserec, false);
+
+	RecorderReRender();
+
+	undolevel = 0;
+
+	RecCalculatePeak(baserec);
+
+	RecorderResetRegion();
+
+	//recOrPlay = 0;
+
+	return true;
+
+}
+
+void RecorderBuildMediumSpectrum(float* out, int length)
+{
+	int chunks = baserec.bufpos / length;
+	int j = 0;
+
+	ZeroMemory(out, length * sizeof(float));
+
+	while (j < baserec.bufpos)
+	{
+		for (int i = 0; i < length; ++i)
+		{
+			int i0, i1, i2, i3;
+			i0 = j + i - 2;
+			if (i0 < 0)
+				i0 = 0;
+			i1 = j + i - 1;
+			if (i1 < 0)
+				i1 = 0;
+			i2 = j + i;
+			i3 = j + i + 1;
+			if (i3 >= baserec.bufpos)
+				i3 = baserec.bufpos - 1;
+			
+			float t = ((float)i / (float)length);
+			//t *= 2;
+			float sp = CatmullRom1D(t, baserec.recbuf[i0], baserec.recbuf[i1], baserec.recbuf[i2], baserec.recbuf[i3]);
+
+			out[i] += sp;//(sp + out[i]) / 2.0f;
+		}
+		j += length;
+	}
+	float outmax = 0;
+	for (int i = 0; i < length; ++i)
+	{
+		float fv = fabs(out[i]);
+		if (fv > outmax)
+			outmax = fv;
+	}
+	for (int i = 0; i < length; ++i)
+	{
+		out[i] /= outmax;
+	}
+}
+
+#include "morningnoisereduction.h"
+
+void RecorderCaptureNoiseInRegion()
+{
+	if (!isRegionSet)
+		return;
+
+	NoiseRed48khzGetProfile(baserec.recbuf + regionBegin, regionEnd - regionBegin);
+}
+
+void RecorderReduceNoiseInRegion()
+{
+	if (undolevel < RECMAXUNDOLEVEL)
+		prevrec[undolevel++] = baserec;
+	else
+		return;
+
+	if (!isRegionSet)
+		return;
+
+	NoiseRed48khzProcess(baserec.recbuf + regionBegin, regionEnd - regionBegin, 0.5f);
+}
+
+bool IsRecordNormalized()
+{
+	return (baserec.peak > 0.98f && baserec.peak < 1.00f);
+}

@@ -24,9 +24,11 @@
 #include <thread>
 #include <chrono>
 
+#include <shobjidl.h>
+
 HWND mainWnd;
 
-#define RECORDER_VERSION_STRING "Version v.0.6.0"
+#define RECORDER_VERSION_STRING "Version v.0.7.0"
 
 const char* diskName = "PortableTapeRecorder";
 const char* diskDesc = "Portable Tape Recorder";
@@ -249,7 +251,7 @@ void UpdateInput(HWND context)
 
 		bMouseDoubleClick = false;
 
-		if(bMouseClick && ( timeTicks - clickTime < 250))
+		if(bMouseClick && ( timeTicks - clickTime < 250) )
 		{
 			bMouseDoubleClick = true;
 		}
@@ -669,6 +671,159 @@ void FreeSounds()
 
 //////////////////////////
 
+//#include <locale>
+//#include <codecvt>
+
+#include <atlstr.h>
+
+std::wstring convertcstring(std::string str)
+{
+	CStringA cstr(str.c_str());
+	CStringW wstr = cstr;
+	return std::wstring(wstr.GetString());
+}
+
+std::string convertwstring(std::wstring wstr)
+{
+	CStringW str(wstr.c_str());
+	CStringA astr = str;
+	return std::string(astr.GetString());
+/*char strbuf[4096];
+	size_t convsize;
+	wcstombs_s(&convsize, strbuf, 4096, wstr.c_str(), 4096);//(&convertedChars, nstring, newsize, orig, _TRUNCATE);
+	return std::string(strbuf);
+	*/
+/*	std::setlocale(LC_ALL, "");
+	using convert_type = std::codecvt_utf8<wchar_t>;
+	std::wstring_convert<convert_type, wchar_t> converter;
+	std::string cstr = converter.to_bytes(wstr);
+	return cstr;*/
+}
+
+bool HelperGetSaveFileName(std::string& out)
+{
+	bool result = false;
+	HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+	if (FAILED(hr)) 
+		return false;
+
+	IFileSaveDialog* pfsd = NULL;
+	hr = CoCreateInstance(CLSID_FileSaveDialog, NULL, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pfsd));
+	if (SUCCEEDED(hr)) 
+	{
+		COMDLG_FILTERSPEC rgSpec[] = {
+			{ L"PNG Image File", L"*.png" },
+		};
+		pfsd->SetFileTypes(ARRAYSIZE(rgSpec), rgSpec);
+		pfsd->SetDefaultExtension(L"png");
+		pfsd->SetTitle(L"Save Tone Screen as PNG image");
+
+		IShellItem* pCurFolder = NULL;
+		std::wstring folder = convertcstring(getDocumentsFileName(""));
+
+		hr = SHCreateItemFromParsingName(folder.c_str(), NULL, IID_PPV_ARGS(&pCurFolder));
+		if (SUCCEEDED(hr))
+		{
+			pfsd->SetFolder(pCurFolder);
+			pCurFolder->Release();
+		}
+
+		hr = pfsd->Show(mainWnd);
+		if (SUCCEEDED(hr)) {
+			IShellItem* pItem;
+			hr = pfsd->GetResult(&pItem);
+			if (SUCCEEDED(hr)) {
+				PWSTR pszFilePath = NULL;
+				hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &pszFilePath);
+				if (SUCCEEDED(hr)) {
+
+					std::wstring wout = pszFilePath;
+					std::string cout = convertwstring(wout);
+					out = cout;
+
+					result = true;
+
+					CoTaskMemFree(pszFilePath);
+				}
+				pItem->Release();
+			}
+		}
+		pfsd->Release();
+	}
+	CoUninitialize();
+
+	SetFocus(mainWnd);
+
+	return result;
+}
+
+bool HelperGetOpenFileName(std::string& out)
+{
+	bool result = false;
+	
+	HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+
+	if (SUCCEEDED(hr)) {
+		IFileOpenDialog* pFileOpen = nullptr;
+
+		hr = CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_ALL,
+			IID_IFileOpenDialog, reinterpret_cast<void**>(&pFileOpen));
+
+		if (SUCCEEDED(hr)) {
+			COMDLG_FILTERSPEC fileTypes[] = {
+				{ L"WAV Sound Files", L"*.wav" },
+			};
+			pFileOpen->SetFileTypes(ARRAYSIZE(fileTypes), fileTypes);
+			pFileOpen->SetDefaultExtension(L"wav");
+			pFileOpen->SetTitle(L"Import track from WAV file");
+
+			IShellItem* pCurFolder = NULL;
+			std::wstring folder = convertcstring(getMusicFileName(""));
+
+			hr = SHCreateItemFromParsingName(folder.c_str(), NULL, IID_PPV_ARGS(&pCurFolder));
+			if (SUCCEEDED(hr))
+			{
+				pFileOpen->SetFolder(pCurFolder);
+				pCurFolder->Release();
+			}
+
+			hr = pFileOpen->Show(mainWnd); 
+
+			if (SUCCEEDED(hr)) {
+				IShellItem* pItem = nullptr;
+				hr = pFileOpen->GetResult(&pItem);
+
+				if (SUCCEEDED(hr)) {
+					PWSTR pszFilePath = 0;
+					hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &pszFilePath);
+
+					if (SUCCEEDED(hr)) {
+						//std::wcout << L"Выбранный файл: " << pszFilePath << std::endl;
+						std::wstring wout = pszFilePath;
+						std::string cout = convertwstring(wout);
+						out = cout;
+
+						result = true;
+
+						CoTaskMemFree(pszFilePath);
+					}
+					pItem->Release();
+				}
+			}
+			else 
+			if (hr == HRESULT_FROM_WIN32(ERROR_CANCELLED)) {
+				//std::cout << "Пользователь отменил выбор файла." << std::endl;
+			}
+			pFileOpen->Release();
+		}
+		CoUninitialize();
+	}
+	SetFocus(mainWnd);
+	return result;
+}
+
+//////////////////////////
+
 int beepforme;
 
 
@@ -914,14 +1069,17 @@ playX = 90, playY = 470,
 zoomX = 330, zoomY = 25,
 hideX = 456, hideY = 267,
 infobutX = 750, infobutY = 50,
+specbutX = 725, specbutY = 50,
 quitX = 473, quitY = 267,
 quitinfoX = 780, quitinfoY = 480,
 equalizerY = 255, eqCropLeft = 1, eqCropRight = 0,
 meterX = 850, meterY = 110, meterWidth = 36, meterHeight = 320, meterOffsetX = 3, meterOffsetY = 5,
 trackX = 25, trackY = 125, trackWidth = 750, trackHeight = 100,
 remasterX = 460, remasterY = 460,
+savescreenX = 380, savescreenY = 495,
 reverbX = 460, reverbY = 460,
 superfiX = 460, superfiY = 490,
+masterX = 460, masterY=500,
 liftupX = 720, liftupY = 465,
 applyX = 680, applyY = 18,
 settingsX = 350, settingsY = 25,
@@ -931,7 +1089,8 @@ regulatorX = 600, regulatorY = 465, regulatorDiameter = 60,
 waveformcolorX = 25, waveformcolorY = 110,
 bassX = 30, bassY = 480, portyX = 210, portyY = 480,
 delayslowX = 480, delayslowY = 480, delayfastX = 510, delayfastY = 480,
-cuttoX = 0, cuttoY = 0, cutoutX = 60, cutoutY = 0, muteX = 120, muteY = 0, autonoteX = 180, autonoteY = 0;
+cuttoX = 0, cuttoY = 0, cutoutX = 60, cutoutY = 0, muteX = 120, muteY = 0, autonoteX = 180, autonoteY = 0,
+capnoiseX = 60, remnoiseX= 180, capnoiseY = 20, remnoiseY = 20;
 
 double regulatorDefaultValue = 0.5;
 
@@ -940,6 +1099,7 @@ quitImage, quitOverImage,
 quitInfoImage, quitInfoOverImage,
 hideImage, hideOverImage,
 infoButImage, infoButOverImage,
+specButImage, specButOverImage,
 normalizeImage, normalizeOverImage,
 limitImage, limitOverImage,
 recImage, recOverImage,
@@ -951,11 +1111,14 @@ zoomOutImage, zoomOutOverImage,
 zoomFullImage, zoomFullOverImage,
 exportImage, exportOverImage,
 exportMp3Image, exportMp3OverImage,
+importImage, importOverImage,
 addriaaImage, addriaaOverImage,
 undofxImage, undofxOverImage,
 remasterImage, remasterOverImage,
 reverbImage, reverbOverImage,
 superfiImage, superfiOverImage,
+masterImage, masterOverImage,
+savescreenImage, savescreenOverImage,
 liftUpImage, liftUpOverImage,
 remasterplayingImage, remasterplayingOverImage,
 meterImage,
@@ -973,8 +1136,9 @@ delayFastImage, delayFastImageOn,
 cutToImage, cutToOverImage,
 cutOutImage, cutOutOverImage,
 muteImage, muteOverImage,
-autoNoteImage, autoNoteOverImage;
-
+autoNoteImage, autoNoteOverImage,
+capnoiseImage, capnoiseOverImage,
+remnoiseImage, remnoiseOverImage;
 
 std::string exportartist = "Tape Recorder";
 
@@ -983,14 +1147,17 @@ std::string beepSound = "beepforme.wav";
 int back;
 int info;
 int settingsback;
+int statsback;
 int quit[2];
 int quitinfo[2];
 int hide[2];
 int infobut[2];
+int specbut[2];
 int normalize[2];
 int limit[2];
 int exportbut[2];
 int exportmp3but[2];
+int importbut[2];
 int addriaa[2];
 int undofx[2];
 int rec[2];
@@ -1003,11 +1170,15 @@ int remaster[2];
 int remasterPlaying[2];
 int reverb[2];
 int superfi[2];
+int master[2];
+int savescreen[2];
 int liftup[2];
 int cutto[2];
 int cutout[2];
 int mute[2];
 int autonote[2];
+int capnoise[2];
+int remnoise[2];
 int scissors;
 int meter;
 int stop[2];
@@ -1154,6 +1325,9 @@ void DrawMainScreen()
 		canclick = false;
 	}
 
+	if (!IsRecordNormalized())
+		normalize_mode = 1;
+
 	if (DrawButton(normalize_mode ? normalize : limit, normalizeX, normalizeY) && canclick)
 	{
 		if (normalize_mode == 1)
@@ -1196,10 +1370,24 @@ void DrawMainScreen()
 
 	static bool exportwavormp3 = true;
 
-	if (DrawButton(exportwavormp3 ? exportbut : exportmp3but, exportX, exportY) && canclick)
+	if (RecorderIsTrackEmpty())
 	{
-		SaveRec(exportwavormp3);
-		exportwavormp3 = !exportwavormp3;
+		if (DrawButton(importbut, exportX, exportY) && canclick)
+		{
+			std::string openfile;
+			if (HelperGetOpenFileName(openfile))
+			{
+				OpenRec(openfile.c_str());
+			}
+		}
+	}
+	else
+	{
+		if (DrawButton(exportwavormp3 ? exportbut : exportmp3but, exportX, exportY) && canclick)
+		{
+			SaveRec(exportwavormp3);
+			exportwavormp3 = !exportwavormp3;
+		}
 	}
 
 	ResetColor();
@@ -1232,6 +1420,12 @@ void DrawMainScreen()
 		spFrame = 3;
 		//ShowWindow(mainWnd, SW_MINIMIZE );
 	}
+
+	if (DrawButton(specbut, specbutX, specbutY))
+	{
+		spFrame = 4;
+	}
+
 
 
 	if (noButtonIsOver)
@@ -1364,7 +1558,7 @@ void DrawMainScreen()
 
 	ResetColor();
 
-	for (int i = 0; i < 256; ++i)
+	for (int i = 0; i < spectrumLength; ++i)
 	{
 		float prev = prevPointsY[i];
 		prevPointsY[i] = pointsY[i];
@@ -1577,7 +1771,7 @@ void DrawMainScreen()
 
 		//////////////////////////////////////
 
-		DrawText(font, 640, 50, 740, 75, D3DCOLOR_RGBA(255, 255, 255, 128), RECORDER_VERSION_STRING);
+		DrawText(font, 610, 50, 710, 75, D3DCOLOR_RGBA(255, 255, 255, 128), RECORDER_VERSION_STRING);
 
 		////////////////////////////////////
 		float rms = ComputeRMS(baserec, baserec.unipos - 256, baserec.unipos);
@@ -1755,6 +1949,11 @@ void DrawMainScreen()
 			RecorderSuperfi();
 		}
 
+		if (DrawButton(master, masterX, masterY))
+		{
+			MasterRec(baserec);
+		}
+
 		if (DrawButton(liftup, liftupX, liftupY))
 		{
 			LiftRec();
@@ -1807,6 +2006,20 @@ void DrawMainScreen()
 						selected = false;
 					}
 
+					if (DrawButton(capnoise, trackxadj + capnoiseX + selection_begin, trackY + selection_height + capnoiseY))
+					{
+						//RecorderApplyAutoNote();
+						RecorderCaptureNoiseInRegion();
+						selected = false;
+					}
+
+					if (DrawButton(remnoise, trackxadj + remnoiseX + selection_begin, trackY + selection_height + remnoiseY))
+					{
+						RecorderReduceNoiseInRegion();
+						//RecorderApplyAutoNote();
+						selected = false;
+					}
+
 					DrawPicture(scissors, trackxadj + selection_begin, trackY + selection_height + pictures[mute[0]].height + 8);
 				}
 			}
@@ -1814,6 +2027,7 @@ void DrawMainScreen()
 			//selected = true;
 			if (selecting)
 			{
+				//mouseinaction = true;
 				disableWindowMovement = true;
 				int curselpos = mouseX - trackX;
 				if (curselpos < 0)
@@ -1835,6 +2049,7 @@ void DrawMainScreen()
 				if (!MouseL())
 				{
 					selecting = false;
+					//mouseinaction = false;
 
 					int selbegin_samples = 0, selend_samples = 0;
 
@@ -1870,15 +2085,6 @@ void DrawMainScreen()
 
 			if (MouseInBox_WH(trackX, trackY - selection_height, trackWidth, selection_height * 2) && !selecting && !mouseinaction)
 			{
-				if (MouseL())
-				{
-					selected = true;
-					selecting = true;
-					selection_pos = mouseX - trackX;
-					selection_begin = selection_pos;
-					selection_end = selection_pos;
-					RecorderResetRegion();
-				}
 				if (MouseDoubleClick())
 				{
 					selected = true;
@@ -1887,6 +2093,16 @@ void DrawMainScreen()
 					selection_begin = 0;
 					selection_end = trackWidth;
 					RecorderSetRegion(0, trackWidth * samplesperpx);
+				}
+				else
+				if (MouseL())
+				{
+					selected = true;
+					selecting = true;
+					selection_pos = mouseX - trackX;
+					selection_begin = selection_pos;
+					selection_end = selection_pos;
+					RecorderResetRegion();
 				}
 			}
 			else
@@ -1916,10 +2132,10 @@ void DrawMainScreen()
 			}
 		}*/
 
-		if (KeyTrig(DIK_E))
-		{
-			RecorderApplyAutoNote();
-		}
+		//if (KeyTrig(DIK_E))
+		//{
+		//	RecorderApplyAutoNote();
+		//}
 
 		if (drawdebugscreen)
 		{
@@ -2208,6 +2424,138 @@ void DrawInfoScreen()
 	}
 }
 
+void MakeScreenshot(std::string filename = "")
+{
+	if (filename == "")
+	{
+		filename = getDocumentsFileName("screenshot.png");
+	}
+					IDirect3DSurface9* backbuffer = NULL;
+				IDirect3DSurface9* surface = NULL;
+
+				HRESULT hr = d3dd->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &backbuffer);
+
+				if (SUCCEEDED(hr)) 
+				{
+					D3DSURFACE_DESC desc;
+					backbuffer->GetDesc(&desc);
+
+					hr = d3dd->CreateOffscreenPlainSurface(
+						desc.Width, desc.Height, desc.Format, D3DPOOL_SYSTEMMEM, &surface, NULL
+					);
+
+					if (SUCCEEDED(hr)) {
+						hr = d3dd->GetRenderTargetData(backbuffer, surface);
+
+						if (SUCCEEDED(hr)) {
+							D3DXSaveSurfaceToFile(filename.c_str(), D3DXIFF_PNG, surface, NULL, NULL);
+
+							std::string message = "Screenshot saved at [" + filename + "]!";
+							MessageBoxA(mainWnd, message.c_str(), "Saved!", MB_OK | MB_ICONINFORMATION);
+						}
+
+						surface->Release();
+					}
+
+					backbuffer->Release();
+				}
+
+}
+
+void DrawStatisticsScreen()
+{
+	DrawPicture(statsback, 0, 0);
+
+	float spectrum[1024];
+	RecorderBuildMediumSpectrum(spectrum, 512);
+
+	SetColor(255, 255, 255, 255);
+
+	const float graphX = windowWidth / 2 - 256, graphY = 220, graphWidth = 512, graphHeight = 66;
+
+	DrawPicture(px1, graphX, graphY - graphHeight, graphWidth, graphHeight * 2);
+
+	static const float frequencies[12] = { 150, 300, 600, 800, 1000, 1500, 2000, 4000, 8000, 12000, 16000, 18000 };
+
+	int index = 0;
+	bool drawn = false;
+
+	SetColor(0, 0, 0, 64);
+
+	DrawPicture(px1, graphX, graphY, graphWidth, 1);
+	DrawPicture(px1, graphX, graphY - 16.5f, graphWidth, 1);
+	DrawPicture(px1, graphX, graphY + 16.5f, graphWidth, 1);
+
+	for (int i = 0; i < 512; ++i)
+	{
+		if ((float)i / 512.0f > frequencies[index] / 18000.0f)
+		{
+			SetColor(0, 0, 0, 64);
+			DrawPicture(px1, graphX + i, graphY - graphHeight, 1, graphHeight * 2);
+
+			index += 1;
+			drawn = false;
+		}
+		if (index == 5 && !drawn)
+		{
+			//SetColor(255, 255, 255, 255);
+			DrawText(font, graphX + i, graphY + graphHeight, graphX + i + 30, graphY + graphHeight + 20, D3DCOLOR_RGBA(255, 255, 255, 255), "1kHz");
+			drawn = true;
+		}
+
+		if (index == 8 && !drawn)
+		{
+			DrawText(font, graphX + i, graphY + graphHeight, graphX + i + 30, graphY + graphHeight + 20, D3DCOLOR_RGBA(255, 255, 255, 255), "4kHz");
+			drawn = true;
+		}
+
+		if (index == 9 && !drawn)
+		{
+			DrawText(font, graphX + i, graphY + graphHeight, graphX + i + 30, graphY + graphHeight + 20, D3DCOLOR_RGBA(255, 255, 255, 255), "8kHz");
+			drawn = true;
+		}
+
+		if (index == 11 && !drawn)
+		{
+			DrawText(font, graphX + i, graphY + graphHeight, graphX + i + 40, graphY + graphHeight + 20, D3DCOLOR_RGBA(255, 255, 255, 255), "16kHz");
+			drawn = true;
+		}
+
+		SetColor(0, 0, 0, 255);
+
+		//float ioff = (float)i / 2.0f;
+		float len = spectrum[i] * 33.0f;
+		DrawPicture(px1, graphX + i, graphY - len, 1, 1);
+
+	}
+
+	ResetColor();
+
+	static bool makescreenshot = false;
+	static std::string screenshotfilename;
+
+	if (!makescreenshot)
+	{
+		if (DrawButton(savescreen, savescreenX, savescreenY))
+		{
+			if (HelperGetSaveFileName(screenshotfilename))
+			{
+				makescreenshot = true;
+			}
+		}
+	}
+	else
+	{
+		MakeScreenshot(screenshotfilename);
+		makescreenshot = false;
+	}
+
+	if (KeyTrig(DIK_ESCAPE))
+	{
+		spFrame = 1;
+	}
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
@@ -2445,6 +2793,15 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 			infoButOverImage = temp->Attribute("onMouseOver");
 		}
 
+		if (strcmp(id, "spec") == 0)
+		{
+			temp->Attribute("x", &specbutX);
+			temp->Attribute("y", &specbutY);
+			specButImage = temp->Attribute("image");
+			specButOverImage = temp->Attribute("onMouseOver");
+		}
+
+
 
 		if (strcmp(id, "addriaa") == 0)
 		{
@@ -2495,6 +2852,23 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 			superfiOverImage = temp->Attribute("onMouseOver");
 		}
 
+		if (strcmp(id, "master") == 0)
+		{
+			temp->Attribute("x", &masterX);
+			temp->Attribute("y", &masterY);
+			masterImage = temp->Attribute("image");
+			masterOverImage = temp->Attribute("onMouseOver");
+		}
+
+		if (strcmp(id, "savescreen") == 0)
+		{
+			temp->Attribute("x", &savescreenX);
+			temp->Attribute("y", &savescreenY);
+			savescreenImage = temp->Attribute("image");
+			savescreenOverImage = temp->Attribute("onMouseOver");
+		}
+
+
 		if (strcmp(id, "liftup") == 0)
 		{
 			temp->Attribute("x", &liftupX);
@@ -2535,6 +2909,22 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 			autoNoteOverImage = temp->Attribute("onMouseOver");
 		}
 
+
+		if (strcmp(id, "capnoise") == 0)
+		{
+			temp->Attribute("x", &capnoiseX);
+			temp->Attribute("y", &capnoiseY);
+			capnoiseImage = temp->Attribute("image");
+			capnoiseOverImage = temp->Attribute("onMouseOver");
+		}
+
+		if (strcmp(id, "remnoise") == 0)
+		{
+			temp->Attribute("x", &remnoiseX);
+			temp->Attribute("y", &remnoiseY);
+			remnoiseImage = temp->Attribute("image");
+			remnoiseOverImage = temp->Attribute("onMouseOver");
+		}
 
 		temp = temp->NextSiblingElement("button");
 	}
@@ -2620,6 +3010,9 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 			exportOverImage = temp->Attribute("onMouseOver1");
 			exportMp3Image = temp->Attribute("image2");
 			exportMp3OverImage = temp->Attribute("onMouseOver2");
+			importImage = temp->Attribute("image3");
+			importOverImage = temp->Attribute("onMouseOver3");
+
 		}
 
 		if (strcmp(id, "onoff") == 0)
@@ -2803,6 +3196,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 
 	settingsback = LoadPicture("images/settings.png");
 
+	statsback = LoadPicture("images/statsback.png");
+
 	quit[0] = LoadPicture("images/" + quitImage);
 	quit[1] = LoadPicture("images/" + quitOverImage);
 
@@ -2815,6 +3210,10 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 	infobut[0] = LoadPicture("images/" + infoButImage);
 	infobut[1] = LoadPicture("images/" + infoButOverImage);
 
+	specbut[0] = LoadPicture("images/" + specButImage);
+	specbut[1] = LoadPicture("images/" + specButOverImage);
+
+
 	normalize[0] = LoadPicture("images/" + normalizeImage);
 	normalize[1] = LoadPicture("images/" + normalizeOverImage);
 
@@ -2826,6 +3225,10 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 
 	exportmp3but[0] = LoadPicture("images/" + exportMp3Image);
 	exportmp3but[1] = LoadPicture("images/" + exportMp3OverImage);
+
+	importbut[0] = LoadPicture("images/" + importImage);
+	importbut[1] = LoadPicture("images/" + importOverImage);
+
 
 	addriaa[0] = LoadPicture("images/" + addriaaImage);
 	addriaa[1] = LoadPicture("images/" + addriaaOverImage);
@@ -2876,6 +3279,12 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 	superfi[0] = LoadPicture("images/" + superfiImage);
 	superfi[1] = LoadPicture("images/" + superfiOverImage);
 
+	master[0] = LoadPicture("images/" + masterImage);
+	master[1] = LoadPicture("images/" + masterOverImage);
+
+	savescreen[0] = LoadPicture("images/" + savescreenImage);
+	savescreen[1] = LoadPicture("images/" + savescreenOverImage);
+
 	liftup[0] = LoadPicture("images/" + liftUpImage);
 	liftup[1] = LoadPicture("images/" + liftUpOverImage);
 
@@ -2890,6 +3299,12 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 
 	autonote[0] = LoadPicture("images/" + autoNoteImage);
 	autonote[1] = LoadPicture("images/" + autoNoteOverImage);
+
+	capnoise[0] = LoadPicture("images/" + capnoiseImage);
+	capnoise[1] = LoadPicture("images/" + capnoiseOverImage);
+
+	remnoise[0] = LoadPicture("images/" + remnoiseImage);
+	remnoise[1] = LoadPicture("images/" + remnoiseOverImage);
 
 	loopon[0] = LoadPicture("images/" + loopOnImage);
 	loopon[1] = LoadPicture("images/" + loopOnOverImage);
@@ -3051,9 +3466,17 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 			{
 				DrawInfoScreen();
 			}
+			else if (spFrame == 4)
+			{
+				DrawStatisticsScreen();
+			}
 			if (KeyTrig(DIK_F1))
 			{
 				spFrame = 3;
+			}
+			if (KeyTrig(DIK_F2))
+			{
+				spFrame = 4;
 			}
 		
 			/////////////////////////////////////////////////////////////
@@ -3152,6 +3575,11 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 			#ifndef _DEBUG
 				PostQuitMessage(0);
 			#endif
+			}
+
+			if (KeyTrig(DIK_F11))
+			{
+				MakeScreenshot();
 			}
 
 			//
