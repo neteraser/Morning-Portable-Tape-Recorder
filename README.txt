@@ -51,3 +51,13 @@ Bugfixing, and this is a pretty stable release.
 Added in the version 0.6.0 is selection of a region inside the recorded track. Now you can cut in, cut out and mute the track.
 
 Also introduced is a very important part of the original Columbia/RCA Records editor which is the AutoNote filter correcting the tempo of a track by automatically catching notes in your record and adjusting their length. You can check this does work nice.
+
+* v.0.7.0
+
+Versions 0.7.0 is adding spectral view and editing:
+1. Mr. Tonor spectral screen is available by calling F2. You can save the summary as a PNG image.
+2. Simplest noice reduction effect based on the spectral substraction using CatmullRom1D and InverseCatmullRom1D functions.
+3. Added is a standalone Render button working with the center frequecy at 8kHz (cinematographic render).
+4. Now you can import your own track from a WAV file if you want to color it in the editor, to do so you gotta empty the existing track.
+
+Small bugfixes, but this is it so far.
