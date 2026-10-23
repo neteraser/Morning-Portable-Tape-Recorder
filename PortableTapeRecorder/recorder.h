@@ -276,7 +276,7 @@ __inline int InverseCatmullRom1DInArray(int arraylength, double y_target, double
 
 	int i = 0;
 
-	double t = (y_target - p1) / (p2 - p1);
+	double t = fabs((y_target - p1) / (p2 - p1));
 	if (t < 0.0 || t > 1.0)
 		t = 0.5; 
 
@@ -289,6 +289,8 @@ __inline int InverseCatmullRom1DInArray(int arraylength, double y_target, double
 
 	for (int j = 0; j < CATMULLROM_MAX_ITERATION_IN_ARRAY; ++j)
 	{		
+		t = fabs(t);
+
 		if (std::abs(pt - t) < step)
 			break;
 
@@ -335,7 +337,7 @@ __inline int InverseCatmullRom1DInArray(int arraylength, double y_target, double
 	
 	}
 
-	i = (int)roundf(t * (double)(arraylength-1));
+	i = (int)truncf(fabs(t) * (double)(arraylength-1));
 
 	if (i > arraylength - 1)
 		i = arraylength - 1;

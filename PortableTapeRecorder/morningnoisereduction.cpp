@@ -4,7 +4,7 @@
 #include "log.h"
 #include <math.h>
 
-#define NRSPECTRUMLEN 8192
+#define NRSPECTRUMLEN 4096
 
 static float noiseprofile[NRSPECTRUMLEN];
 static float noisespectrum[NRSPECTRUMLEN];
@@ -95,14 +95,14 @@ void NRInduceSpectrumNoise(float* spec, float* noisespec, int length, float hard
 
 	for (int i = 0; i < length; ++i)
 	{
-		float damping = 1.0f - (float)i / (float)length;
-		float spmix = noisespec[i] * damping * hardness + spectrum_norm[i];
+		float damping = 1.0f - (float)i / (float)(length-1);
+		float spmix = noisespec[i] * damping * hardness + spectrum_norm[i] * (1.0f - hardness);
 
 		noisespec[i] = spec[i] * hardness2 + (1.0f - hardness2) * spmix * spmax;// *hardness2 + spectrum_norm[i] * (1.0f - hardness2);// *(1.0f - hardness2) + spec[i] * hardness2;
 	}
 }
 
-void NRHurt(float* out, const float* buffer, int i, float hardness)
+__inline void NRHurt(float* out, const float* buffer, int i, float hardness, float hardness2)
 {
 	if (i < 0)
 		i = 0;
@@ -127,7 +127,11 @@ void NRHurt(float* out, const float* buffer, int i, float hardness)
 
 	//out[i] += out[i] * hardness;
 	//float outq = (1.0f - out[i] * out[i]) * out[i];
-	out[i] += out[i] * hardness;
+	out[i1] += out[i1] * hardness;
+
+	out[i0] += out[i0] * hardness * hardness2;
+
+	out[i2] += out[i2] * hardness * 0.3f;
 
 	//out[i] *= (1.0f + hardness);
 	//out[i2] *= (1.0f + hardness * 0.3f);
@@ -192,13 +196,13 @@ void NRDropGain(float* out, const float* buffer, const float* spec, int start, i
 		ti += start;
 
 		//out[ti] *= hardness;
-		NRHurt(out, buffer, ti, hardness);
+		NRHurt(out, buffer, ti, hardness, hardness2);
 	}
 }
 
 void NRLowPassFilter(float* buffer, int length)
 {
-	const float frequency = 10000.0f;
+	const float frequency = 8000.0f;
 	
 	float x = tanf(REC_PI * frequency / 48000.0f);
 
@@ -255,9 +259,9 @@ void NoiseRed48khzProcess(float* buffer, int length, float hardness)
 
 			CopyMemory(noisespectrum, noiseprofile, sizeof(float) * NRSPECTRUMLEN);
 
-			NRInduceSpectrumNoise(spectrum, noisespectrum, NRSPECTRUMLEN, 0.002f, 0.05f);
+			NRInduceSpectrumNoise(spectrum, noisespectrum, NRSPECTRUMLEN, 0.002f, 0.6f);
 
-			NRDropGain(outbuffer, buffer, noisespectrum, j, NRSPECTRUMLEN, 0.0003f, 1.0f);//0.99f - 1.0f / NRSPECTRUMLEN);
+			NRDropGain(outbuffer, buffer, noisespectrum, j, NRSPECTRUMLEN, 0.0003f, 0.1f);//0.99f - 1.0f / NRSPECTRUMLEN);
 
 			j += NRSPECTRUMLEN;// / 16;
 		}
@@ -272,7 +276,7 @@ void NoiseRed48khzProcess(float* buffer, int length, float hardness)
 		{
 			//float tmp;
 			//tmp = outbuffer[i]; // source - signal
-			buffer[i] = buffer[i] * 0.9f + outbuffer[i] * 0.1f;// *0.8f;
+			buffer[i] = buffer[i] * 0.7f + outbuffer[i] * 0.3f;// *0.8f;
 		}
 	}
 
