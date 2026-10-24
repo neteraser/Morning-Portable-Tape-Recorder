@@ -61,3 +61,9 @@ Versions 0.7.0 is adding spectral view and editing:
 4. Now you can import your own track from a WAV file if you want to color it in the editor, to do so you gotta empty the existing track.
 
 Small bugfixes, but this is it so far.
+
+* v.0.7.1
+
+Noise Reduction effect was improved, the mathematical task is solved.
+
+This version also includes the AudioFFT library and is drawing the FFT spectrum on the Tonor screen, hence why it is now the contemporary Tonor screen.
