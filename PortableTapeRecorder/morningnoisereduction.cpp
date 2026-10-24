@@ -102,21 +102,24 @@ void NRInduceSpectrumNoise(float* spec, float* noisespec, int length, float hard
 	}
 }
 
-__inline void NRHurt(float* out, const float* buffer, int i, float hardness, float hardness2)
+__inline void NRHurt(float* out, const float* buffer, int start, int i, float hardness, float hardness2)
 {
 	if (i < 0)
 		i = 0;
 	if (i > clamplen)
 		i = clamplen;
 
-	int i0, i1, i2;
-	i0 = i - 1;
+	int i0, i1, i2, i3;
+	i0 = start + i - 2;
 	if (i0 < 0)
 		i0 = 0;
-	i1 = i;
-	i2 = i + 1;
-	if (i2 > clamplen)
-		i2 = clamplen;
+	i1 = start + i - 1;
+	if (i1 < 0)
+		i1 = 0;
+	i2 = start + i;
+	i3 = start + i + 1;
+	if (i3 > clamplen)
+		i3 = clamplen;
 
 	//float out = buffer[i0] * hardness;
 	//buffer[i] = out;
@@ -127,20 +130,24 @@ __inline void NRHurt(float* out, const float* buffer, int i, float hardness, flo
 
 	//out[i] += out[i] * hardness;
 	//float outq = (1.0f - out[i] * out[i]) * out[i];
-	out[i1] += out[i1] * hardness;
+	//out[i1] += out[i1] * hardness;
 
-	out[i0] += out[i0] * hardness * hardness2;
+	//out[i0] += out[i0] * hardness * hardness2;
 
-	out[i2] += out[i2] * hardness * 0.3f;
+	//out[i2] += out[i2] * hardness * 0.3f;
 
 	//out[i] *= (1.0f + hardness);
 	//out[i2] *= (1.0f + hardness * 0.3f);
-	if (out[i] > 1.0f)
-		out[i] = 1.0f;
-	if (out[i] < -1.0f)
-		out[i] = -1.0f;
+	//if (out[i] > 1.0f)
+//		out[i] = 1.0f;
+	//if (out[i] < -1.0f)
+	//	out[i] = -1.0f;
 	
 	// I can't do it so far
+
+	// lets try to do it
+	float sp = CatmullRom1D((float)i / (float)(NRSPECTRUMLEN - 1), out[i0], out[i1], out[i2] * (1.0f + hardness), out[i3]);
+	out[i] = sp * hardness + (1.0f - hardness) * out[i];
 }
 
 void NRDropGain(float* out, const float* buffer, const float* spec, int start, int length, float hardness, float hardness2)
@@ -193,10 +200,10 @@ void NRDropGain(float* out, const float* buffer, const float* spec, int start, i
 		//}
 
 		//ti += j;
-		ti += start;
+		//ti += start;
 
 		//out[ti] *= hardness;
-		NRHurt(out, buffer, ti, hardness, hardness2);
+		NRHurt(out, buffer, start, ti, hardness, hardness2);
 	}
 }
 
@@ -276,7 +283,7 @@ void NoiseRed48khzProcess(float* buffer, int length, float hardness)
 		{
 			//float tmp;
 			//tmp = outbuffer[i]; // source - signal
-			buffer[i] = buffer[i] * 0.7f + outbuffer[i] * 0.3f;// *0.8f;
+			buffer[i] = buffer[i] * (1.0f - hardness) + outbuffer[i] * hardness;// *0.8f;
 		}
 	}
 

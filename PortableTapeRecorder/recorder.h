@@ -609,3 +609,5 @@ void RecorderCaptureNoiseInRegion();
 void RecorderReduceNoiseInRegion();
 
 bool IsRecordNormalized();
+
+void SmoothRecByFFT();

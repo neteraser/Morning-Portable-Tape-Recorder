@@ -305,11 +305,11 @@ void RecProcess256Samples()
 
 	for (int i = 0; i < recslowdownsamples; ++i)
 	{
-		float src_idx = ((float)i * 256.0f / (float)(recslowdownsamples));
+		float src_idx = ((float)i * 255.0f / (float)(recslowdownsamples-1));
 		int idx = (int)roundf(src_idx);
 		int idxprev = (int)roundf(src_idx - 1.0f);
 		int idxnext = (int)roundf(src_idx + 1.0f);
-		float spos = 0.5f + (float)(recslowdownsamples) / 256.0f - 1.0f;
+		float spos = 0.5f + (float)(recslowdownsamples) / 255.0f - 1.0f;
 		
 		float vclean = baserec.rectempbuf[idx];
 
@@ -901,7 +901,7 @@ bool RecorderPullData(float* buffer, int length)
 
 	for (int i = 0; i < length; ++i)
 	{
-		float fi = (float)i * (float)(recspeedupsamples) / 256.0f;
+		float fi = (float)i * (float)(recspeedupsamples-1) / 255.0f;
 		int src_idx = (int)roundf(fi);
 		src_idx += streamrec.playpos;
 
@@ -915,7 +915,7 @@ bool RecorderPullData(float* buffer, int length)
 
 		float fvprev = streamrec.recbuf[idxprev];
 
-		float midpos = 256.0f / (float)recspeedupsamples;
+		float midpos = 255.0f / (float)(recspeedupsamples-1);
 
 		float finterp = fv * midpos + fvprev * (1.0f - midpos);
 			
@@ -2345,11 +2345,14 @@ void RecursiveAutoNoteHelper(int& recursionlevel, int begin, int end)
 
 void RecStretchChunk(int begin, int end, int newsize, float emphasis = 0.0f)
 {
+	if (end - begin <= 0)
+		return;
+
 	for (int i = 0; i < newsize; ++i)
 	{
-		float src_idx = (float) (i) * (float)(end - begin) / (float)newsize;
+		float src_idx = (float) (i) * (float)(end - begin - 1) / (float)(newsize-1);
 		float fv = baserec.recbuf[(int)std::roundf(src_idx) + begin];
-		float ev = (float)i / ((float)newsize / 2.0f);
+		float ev = (float)i / ((float)(newsize-1) / 2.0f);
 		if (ev > 0.8f)
 		{
 			ev = (2.0f - ev) / 1.2f;
@@ -2682,10 +2685,17 @@ void RecorderReduceNoiseInRegion()
 	if (!isRegionSet)
 		return;
 
-	NoiseRed48khzProcess(baserec.recbuf + regionBegin, regionEnd - regionBegin, 0.5f);
+	NoiseRed48khzProcess(baserec.recbuf + regionBegin, regionEnd - regionBegin, recQFX * 0.7f);
 }
 
 bool IsRecordNormalized()
 {
 	return (baserec.peak > 0.98f && baserec.peak < 1.00f);
+}
+
+#include "morningfftsmoothing.h"
+
+void SmoothRecByFFT()
+{
+	//(baserec.recbuf, baserec.bufpos);
 }

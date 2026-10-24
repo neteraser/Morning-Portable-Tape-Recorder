@@ -1232,6 +1232,11 @@ static bool drawdebugscreen = true;
 static bool drawdebugscreen = false;
 #endif 
 
+//extern float greal[];
+//extern float gimag[];
+
+#include "morningfftsmoothing.h"
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void DrawMainScreen()
@@ -2150,6 +2155,11 @@ void DrawMainScreen()
 				recpeaks.clear();
 			}
 		}
+
+		if (KeyTrig(DIK_F3))
+		{
+			SmoothRecByFFT();
+		}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2471,7 +2481,7 @@ void DrawStatisticsScreen()
 
 	SetColor(255, 255, 255, 255);
 
-	const float graphX = windowWidth / 2 - 256, graphY = 220, graphWidth = 512, graphHeight = 66;
+	const float graphX = windowWidth / 2 - 256, graphY = 180, graphWidth = 512, graphHeight = 66;
 
 	DrawPicture(px1, graphX, graphY - graphHeight, graphWidth, graphHeight * 2);
 
@@ -2528,6 +2538,15 @@ void DrawStatisticsScreen()
 		DrawPicture(px1, graphX + i, graphY - len, 1, 1);
 
 	}
+
+	FFTBuildMediumSpectrum(baserec.recbuf, baserec.bufpos, 1024);
+
+	for (int i = 1; i < FFTSMOOTHLEN / 2 + 1; ++i)
+	{
+		SetColor(fft_spec_real[i] * 255.0f, fft_spec_imag[i] * 255.0f, 0.0, 255);
+		DrawPicture(px1, graphX + i - 1, graphY + graphHeight + 32, 1, 25);
+	}
+
 
 	ResetColor();
 

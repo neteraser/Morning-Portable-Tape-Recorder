@@ -28,7 +28,7 @@
 	<button id="superfi" image="but_superfi.png" onMouseOver="but_superfi_over.png" x="730" y="485"/>
 	<button id="master" image="but_render.png" onMouseOver="but_render_over.png" x="730" y="505"/>
 
-	<button id="savescreen" image="but_savescreen.png" onMouseOver="but_savescreen_over.png" x="380" y="495"/>
+	<button id="savescreen" image="but_savescreen.png" onMouseOver="but_savescreen_over.png" x="420" y="495"/>
 
 	<button id="liftup" image="but_liftup.jpg" onMouseOver="but_liftup_over.jpg" x="850" y="468"/>
 

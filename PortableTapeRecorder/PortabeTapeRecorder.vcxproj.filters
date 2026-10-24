@@ -32,6 +32,8 @@
     <ClCompile Include="audiolibwrapper.cpp" />
     <ClCompile Include="morningreverb.cpp" />
     <ClCompile Include="morningnoisereduction.cpp" />
+    <ClCompile Include="AudioFFT.cpp" />
+    <ClCompile Include="morningfftsmoothing.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="xml\tinystr.H">
@@ -50,6 +52,8 @@
     <ClInclude Include="audiolibwrapper.h" />
     <ClInclude Include="morningreverb.h" />
     <ClInclude Include="morningnoisereduction.h" />
+    <ClInclude Include="AudioFFT.h" />
+    <ClInclude Include="morningfftsmoothing.h" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="icon1.ico" />
