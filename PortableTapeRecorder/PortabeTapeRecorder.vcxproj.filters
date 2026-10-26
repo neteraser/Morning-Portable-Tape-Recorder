@@ -54,6 +54,7 @@
     <ClInclude Include="morningnoisereduction.h" />
     <ClInclude Include="AudioFFT.h" />
     <ClInclude Include="morningfftsmoothing.h" />
+    <ClInclude Include="afxres.h" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="icon1.ico" />
@@ -63,5 +64,8 @@
   </ItemGroup>
   <ItemGroup>
     <Xml Include="portabletaperecordersettings.xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="resource.hm" />
   </ItemGroup>
 </Project>

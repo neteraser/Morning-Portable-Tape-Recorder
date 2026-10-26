@@ -518,7 +518,7 @@ bool RecorderCanUndo();
 
 bool RecorderCanDoFX();
 
-extern HWND mainWnd;
+//extern HWND mainWnd;
 
 //extern DWORD gerror;
 
@@ -611,3 +611,15 @@ void RecorderReduceNoiseInRegion();
 bool IsRecordNormalized();
 
 void SmoothRecByFFT();
+
+void RecorderStartLongOperation(void (*func)(), std::string opname);
+
+#define RECLONGOP(x, name) RecorderStartLongOperation((x), name);
+
+void RecorderReportProgress(float progress);
+
+void RecorderResetPlayPos();
+
+void RecCalculatePeakInRegion();
+
+void InvertRec();

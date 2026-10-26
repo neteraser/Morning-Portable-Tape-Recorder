@@ -1,5 +1,7 @@
 
 #include "recorder.h"
+#include "main.h"
+#include "resource.h"
 #include "log.h"
 #include <string>
 #include <map>
@@ -1310,6 +1312,12 @@ void RecorderDebugCheck()
 
 	if (baserec.unipos > RECBUFSTANDARDSIZE)
 		baserec.unipos = RECBUFSTANDARDSIZE;
+
+	if (baserec.peakpos < 0)
+		baserec.peakpos = 0;
+
+	if (baserec.peakpos > RECBUFSTANDARDSIZE)
+		baserec.peakpos = RECBUFSTANDARDSIZE;
 
 	// clamp to 2.0
 
@@ -2697,5 +2705,139 @@ bool IsRecordNormalized()
 
 void SmoothRecByFFT()
 {
-	//(baserec.recbuf, baserec.bufpos);
+	if (undolevel < RECMAXUNDOLEVEL)
+		prevrec[undolevel++] = baserec;
+	else
+		return;
+
+	FFTNormalize(baserec.recbuf, baserec.bufpos, FFTDSPLEN, recQFX / 2.0f );
+}
+
+#include <CommCtrl.h>
+
+static HWND dlgWnd = 0;
+BOOL breakLongOp = FALSE;
+std::string longopname = "";
+float longopprogress = 0.0f;
+
+INT_PTR CALLBACK ProgressBarProc(HWND hwndDlg,
+	UINT message,
+	WPARAM wParam,
+	LPARAM lParam)
+{
+	dlgWnd = hwndDlg;
+
+	switch (message)
+	{
+	case WM_INITDIALOG:
+		COLORREF clr;
+		clr = 0x00000000;
+		SendMessage(GetDlgItem(dlgWnd, IDC_PROGRESSBAR), PBM_SETBARCOLOR, 0, clr);
+		break;
+
+	case WM_COMMAND:
+		switch (LOWORD(wParam))
+		{
+			//case IDOK:
+		case IDCANCELMINE:
+			breakLongOp = TRUE;
+			EndDialog(hwndDlg, 0);
+			return FALSE;
+		}
+		break;
+
+	case WM_CLOSE:
+		breakLongOp = TRUE;
+		EndDialog(hwndDlg, 0);
+		return FALSE;
+	}
+	//EndDialog(hwndDlg, 0);
+	return FALSE;
+}
+
+#include <thread>
+
+typedef void (*operation_ptr)();
+
+operation_ptr longop;
+
+void HelperLongOperation(void* foo)
+{
+	breakLongOp = FALSE;
+	RecorderReportProgress(0);
+	longop();
+	RecorderReportProgress(1.0f);
+	//SendMessage(dlgWnd, WM_CLOSE, 0, 0);
+	breakLongOp = FALSE;
+	EndDialog(dlgWnd, 0);
+}
+
+void RecorderStartLongOperation(void(*func)(), std::string opname)
+{
+	longopname = opname;
+
+	temprec = baserec;
+
+	longop = func;
+	_beginthread(HelperLongOperation, 0, 0);
+	DialogBoxA(mainInstance, MAKEINTRESOURCE(IDD_PROGRESSDLG), mainWnd, ProgressBarProc);
+	if (breakLongOp)
+	{
+		baserec = temprec;
+	}
+}
+
+void RecorderReportProgress(float prog)
+{
+	if (breakLongOp == TRUE)
+	{
+		_endthread();
+	}
+	if (prog < 0.0f)
+		prog = 0.0f;
+	if (prog > 1.0f)
+		prog = 1.0f;
+	if (fabs(prog - longopprogress) > 0.01f || prog == 0.0f || prog == 1.0f) {
+		longopprogress = prog;
+		SendMessage(GetDlgItem(dlgWnd, IDC_PROGRESSBAR), PBM_SETPOS, (int)truncf(prog * 100.0f), 0);
+
+		const char* taskname = "Long task: %s | Progress (%i%%)";
+		char taskbuf[256];
+		sprintf(taskbuf, taskname, longopname.c_str(), (int)(longopprogress * 100.0f));
+		SetDlgItemText(dlgWnd, IDC_TASKNAME, taskbuf);
+	}
+}
+
+void RecorderResetPlayPos()
+{
+	if (IsRecorderPlaying())
+	{
+		streamrec.playpos = 0;
+		if (isRegionSet)
+			streamrec.playpos = regionBegin;
+	}
+	else
+	{
+		baserec.playpos = 0;
+		//RecorderResetRegion();
+	}
+}
+
+void RecCalculatePeakInRegion()
+{
+	if (isRegionSet && (regionEnd - regionBegin) > 10000 )
+	{
+		//baserec.peakpos = regionBegin;
+		RecCalculatePeak(baserec, regionBegin, regionEnd);
+	}
+}
+
+void InvertRec()
+{
+	for (int i = 0; i < baserec.bufpos; ++i)
+	{
+		baserec.recbuf[i] -= 0.000001f;
+		baserec.recbuf[i] = -baserec.recbuf[i];
+		baserec.recbuf[i] += 0.000001f;
+	}
 }

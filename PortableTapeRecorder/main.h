@@ -36,3 +36,6 @@ struct Picture
 // baking resources to c++ code does work as a console app trick, such apps are loading much faster
 
 extern HWND mainWnd;
+extern HINSTANCE mainInstance;
+
+extern void BuildStatisticsSpecturms();

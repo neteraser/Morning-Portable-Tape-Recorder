@@ -1,5 +1,5 @@
 <?xml version="1.0" ?>
-<portabletaperecorder w="900" h="540">
+<portabletaperecorder w="900" h="550">
 
 	<settings id="adcsetup" tapeSlowdownSamples="2" tapeSlowdownMode2Samples= "10" adcIntMaxNatural="32500" />
 	
@@ -10,8 +10,8 @@
 	<button id="info" image="but_info.png" onMouseOver="but_info_over.png" x="765" y="50"/>
 	<button id="spec" image="but_spec.png" onMouseOver="but_spec_over.png" x="730" y="50"/>
 	<button id="quitinfo" image="but_quitinfo.png" onMouseOver="but_quitinfo_over.png" x="780" y="480"/>
+	<button id="fillnote" image="but_fill.png" onMouseOver="but_fill_over.png" x="390" y="445"/>
 
-	
 	<switch id="normalize" image1="but_normalize.png" onMouseOver1="but_normalize_over.png" x="215" y="465"
 			image2="but_limit.png" onMouseOver2="but_limit_over.png"  />
 
@@ -24,13 +24,16 @@
 	<button id="settings" image="but_settings.png" onMouseOver="but_settings_over.png" x="500" y="25"/>
 	<button id="apply" image="but_apply.png" onMouseOver="but_apply_over.png" x="680" y="18"/>
 
-	<button id="reverb" image="but_reverb.png" onMouseOver="but_reverb_over.png" x="730" y="465"/>
-	<button id="superfi" image="but_superfi.png" onMouseOver="but_superfi_over.png" x="730" y="485"/>
-	<button id="master" image="but_render.png" onMouseOver="but_render_over.png" x="730" y="505"/>
+	<button id="reverb" image="but_reverb.png" onMouseOver="but_reverb_over.png" x="730" y="460"/>
+	<button id="superfi" image="but_superfi.png" onMouseOver="but_superfi_over.png" x="730" y="480"/>
+	<button id="master" image="but_render.png" onMouseOver="but_render_over.png" x="730" y="500"/>
+	<button id="fftnorm" image="but_fftnorm.png" onMouseOver="but_fftnorm_over.png" x="730" y="520"/>
 
 	<button id="savescreen" image="but_savescreen.png" onMouseOver="but_savescreen_over.png" x="420" y="495"/>
 
-	<button id="liftup" image="but_liftup.jpg" onMouseOver="but_liftup_over.jpg" x="850" y="468"/>
+	<button id="liftup" image="but_liftup.jpg" onMouseOver="but_liftup_over.jpg" x="850" y="455"/>
+
+	<button id="invert" image="but_invert.png" onMouseOver="but_invert_over.png" x="845" y="510"/>
 
 	<button id="cutto" image="selbut_cutto.jpg" onMouseOver="selbut_cutto_over.jpg" x="0" y="2"/>
 	
@@ -72,8 +75,10 @@
 	<switch id="loop"
 		image1="but_loop_off.png" onMouseOver1="but_loop_off_over.png"
 		image2="but_loop_on.png" onMouseOver2="but_loop_on_over.png"
-		x="165" y="485"
+		x="165" y="505"
 	/>
+
+	<button id="scrollback" image="but_scrollback.jpg" onMouseOver="but_scrollback_over.jpg" x="165" y="465" />
 
 	<switch id="export" 
 			image1="but_exportwav.png" onMouseOver1="but_exportwav_over.png" 

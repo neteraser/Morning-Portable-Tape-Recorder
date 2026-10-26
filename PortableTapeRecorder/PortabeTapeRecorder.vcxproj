@@ -118,6 +118,7 @@
     <ClCompile Include="xml\tinyxmlparser.CPP" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="afxres.h" />
     <ClInclude Include="AudioFFT.h" />
     <ClInclude Include="AudioFile.h" />
     <ClInclude Include="audiolibwrapper.h" />
@@ -149,6 +150,9 @@
     <ProjectReference Include="PortYTrack\PortYTrack.vcxproj">
       <Project>{0c95ea46-0bf4-4d7d-8300-b8f3ed1b90b3}</Project>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="resource.hm" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

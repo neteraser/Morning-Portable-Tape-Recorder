@@ -27,8 +27,9 @@
 #include <shobjidl.h>
 
 HWND mainWnd;
+HINSTANCE mainInstance;
 
-#define RECORDER_VERSION_STRING "Version v.0.7.0"
+#define RECORDER_VERSION_STRING "Version v.0.7.1"
 
 const char* diskName = "PortableTapeRecorder";
 const char* diskDesc = "Portable Tape Recorder";
@@ -164,6 +165,7 @@ bool KeyPressed(int k)
 }
 
 //static __int64 keyPressTime[256] = { 0 };
+//bool keyPressed[256] = { false };
 
 bool KeyTrig(int k)
 {
@@ -173,16 +175,17 @@ bool KeyTrig(int k)
 	{
 		bool kb = (kbbuf[k] & 0x80);
 		bool kbprev = (kbbufPrev[k] & 0x80);
-		if ( !kb && kbprev )
+		if (!kb && kbprev)
 		{
-			kbbuf[k] = 0;
 			kbbufPrev[k] = 0;
-//			keyPressTime[k] = timeTicks;
 			return true;
 		}
 	}
 	return false;
 }
+
+bool bKeyboardInputAllowed = false;
+bool bMouseInputAllowed = false;
 
 void UpdateInput(HWND context)
 {
@@ -207,61 +210,100 @@ void UpdateInput(HWND context)
 	mouseX = (float)cursorpt.x / (float)(clientRect.right - clientRect.left) * windowWidth;
 	mouseY = (float)cursorpt.y / (float)(clientRect.bottom - clientRect.top) * windowHeight;
 
-	if( keyboard ) 
+	if( keyboard)
 	{
-		CopyMemory(kbbufPrev, kbbuf, 256);
-		HRESULT hr = keyboard->GetDeviceState(256, (void*)&kbbuf);
-		if(FAILED(hr))
+		if (bKeyboardInputAllowed)
 		{
+			CopyMemory(kbbufPrev, kbbuf, 256);
+			ZeroMemory(kbbuf, 256);
+
+			HRESULT hr = keyboard->GetDeviceState(256, (void*)kbbuf);
+			if (FAILED(hr))
+			{
+				ZeroMemory(kbbuf, 256);
+				ZeroMemory(kbbufPrev, 256);
+			}
+		}
+		else
+		{
+			HRESULT hr = keyboard->GetDeviceState(256, (void*)kbbuf);
+			if (SUCCEEDED(hr))
+			{
+				bool keyboardallnull = true;
+				for (int k = 0; k < 256; ++k)
+					if (KeyPressed(k))
+						keyboardallnull = false;
+				if (keyboardallnull)
+					bKeyboardInputAllowed = true;
+			}
 			ZeroMemory(kbbuf, 256);
 			ZeroMemory(kbbufPrev, 256);
 		}
 	}
 	else
 	{
-		CopyMemory(kbbufPrev, kbbuf, 256);
+		ZeroMemory(kbbufPrev, 256);
 		ZeroMemory(kbbuf, 256);
 	}
 
 	if(mouse) 
 	{
-		mouse->GetDeviceState(sizeof(DIMOUSESTATE), &mstate);
-	
-		static bool isUp = false;
-		static __int64 clickTime = 0;
-		static __int64 pressTime = 0;
-
-		bMouseClick = false;
-
-		if( MouseL() ) 
+		if (bMouseInputAllowed)
 		{
-			if(isUp)
-				pressTime = timeTicks;
-			isUp = false;
+			mouse->GetDeviceState(sizeof(DIMOUSESTATE), &mstate);
+
+			static bool isUp = false;
+			static __int64 clickTime = 0;
+			static __int64 pressTime = 0;
+
+			bMouseClick = false;
+
+			if (MouseL())
+			{
+				if (isUp)
+					pressTime = timeTicks;
+				isUp = false;
+			}
+			else
+			{
+				if (!isUp)
+				{
+					if (timeTicks - pressTime < 250)
+						bMouseClick = true;
+				}
+				isUp = true;
+			}
+
+			bMouseDoubleClick = false;
+
+			if (bMouseClick && (timeTicks - clickTime < 250))
+			{
+				bMouseDoubleClick = true;
+			}
+
+			if (bMouseClick)
+			{
+				clickTime = timeTicks;
+			}
 		}
 		else
 		{
-			if(!isUp) 
-			{
-				if(timeTicks - pressTime < 250)
-					bMouseClick = true;
-			}
-			isUp = true;
-		}
+			mouse->GetDeviceState(sizeof(DIMOUSESTATE), &mstate);
 
-		bMouseDoubleClick = false;
+			if (!MouseL())
+				bMouseInputAllowed = true;
 
-		if(bMouseClick && ( timeTicks - clickTime < 250) )
-		{
-			bMouseDoubleClick = true;
-		}
-
-		if(bMouseClick)
-		{
-			clickTime = timeTicks;
+			ZeroMemory(&mstate, sizeof(DIMOUSESTATE));
 		}
 	}
 
+}
+
+void ResetInput()
+{
+	bKeyboardInputAllowed = false;
+	bMouseInputAllowed = false;
+	//ZeroMemory(kbbufPrev, 256);
 }
 
 IDirect3DDevice9* d3dd = 0;
@@ -1072,6 +1114,8 @@ infobutX = 750, infobutY = 50,
 specbutX = 725, specbutY = 50,
 quitX = 473, quitY = 267,
 quitinfoX = 780, quitinfoY = 480,
+fillnoteX = 390, fillnoteY = 450,
+scrollbackX = 120, scrollbackY = 465,
 equalizerY = 255, eqCropLeft = 1, eqCropRight = 0,
 meterX = 850, meterY = 110, meterWidth = 36, meterHeight = 320, meterOffsetX = 3, meterOffsetY = 5,
 trackX = 25, trackY = 125, trackWidth = 750, trackHeight = 100,
@@ -1080,7 +1124,9 @@ savescreenX = 380, savescreenY = 495,
 reverbX = 460, reverbY = 460,
 superfiX = 460, superfiY = 490,
 masterX = 460, masterY=500,
+fftnormX = 460, fftnormY = 520,
 liftupX = 720, liftupY = 465,
+invertX = 850, invertY = 500,
 applyX = 680, applyY = 18,
 settingsX = 350, settingsY = 25,
 loopX = 180, loopY = 480,
@@ -1097,6 +1143,8 @@ double regulatorDefaultValue = 0.5;
 std::string
 quitImage, quitOverImage,
 quitInfoImage, quitInfoOverImage,
+fillnoteImage, fillnoteOverImage,
+scrollbackImage, scrollbackOverImage,
 hideImage, hideOverImage,
 infoButImage, infoButOverImage,
 specButImage, specButOverImage,
@@ -1118,8 +1166,10 @@ remasterImage, remasterOverImage,
 reverbImage, reverbOverImage,
 superfiImage, superfiOverImage,
 masterImage, masterOverImage,
+fftnormImage, fftnormOverImage,
 savescreenImage, savescreenOverImage,
 liftUpImage, liftUpOverImage,
+invertImage, invertOverImage,
 remasterplayingImage, remasterplayingOverImage,
 meterImage,
 settingsImage, settingsOverImage,
@@ -1150,6 +1200,8 @@ int settingsback;
 int statsback;
 int quit[2];
 int quitinfo[2];
+int fillnote[2];
+int scrollback[2];
 int hide[2];
 int infobut[2];
 int specbut[2];
@@ -1171,8 +1223,10 @@ int remasterPlaying[2];
 int reverb[2];
 int superfi[2];
 int master[2];
+int fftnorm[2];
 int savescreen[2];
 int liftup[2];
+int invert[2];
 int cutto[2];
 int cutout[2];
 int mute[2];
@@ -1426,8 +1480,10 @@ void DrawMainScreen()
 		//ShowWindow(mainWnd, SW_MINIMIZE );
 	}
 
-	if (DrawButton(specbut, specbutX, specbutY))
+	if (DrawButton(specbut, specbutX, specbutY) || KeyTrig(DIK_F2))
 	{
+		BuildStatisticsSpecturms();
+
 		spFrame = 4;
 	}
 
@@ -1634,6 +1690,8 @@ void DrawMainScreen()
 			//////////////////////////////////////////////////
 			//trackWidth = 512;
 
+	RecCalculatePeakInRegion();
+
 		int waveformlen = 250;
 		if (zoomMode == 1)
 		{
@@ -1643,6 +1701,12 @@ void DrawMainScreen()
 		}
 
 		int samplesperpx = 48000 * waveformlen / trackWidth;
+
+		if (samplesperpx < 1)
+			samplesperpx = 1;
+		const int maxsamplesperpx = (48000 * 250) / trackWidth;
+		if (samplesperpx > maxsamplesperpx)
+			samplesperpx = maxsamplesperpx;
 
 		if (zoomMode == 2)
 			samplesperpx = 1;
@@ -1654,12 +1718,12 @@ void DrawMainScreen()
 			curpos_rt = (float)(timeGetTime() - streamrec.lastplaycallback_time);
 			if (curpos_rt > 100.0f)
 				curpos_rt = 100.0f;
+			if (curpos_rt < 0.0f)
+				curpos_rt = 0.0f;
 			curpos_rt *= 4.8f;
 			//curpos_rt *= 4800.0f;
 		}
 		curpos = (baserec.unipos /* - 4800*/ + curpos_rt) / samplesperpx;
-		if (curpos < 0)
-			curpos = 0;
 		if(zoomMode == 0 && IsRecorderIdling())
 		{
 			curpos = (float)(baserec.peakpos / (float)RECBUFSTANDARDSIZE) * trackWidth;
@@ -1670,6 +1734,8 @@ void DrawMainScreen()
 		}
 		if (curpos < 0)
 			curpos = 0;
+		if (curpos > baserec.bufpos / samplesperpx)
+			curpos = baserec.bufpos / samplesperpx;
 
 		int startpos = 0;
 
@@ -1688,6 +1754,8 @@ void DrawMainScreen()
 				startpos = baserec.peakpos - (trackWidth / 2);
 				if (startpos < 0)
 					startpos = 0;
+				if (startpos > baserec.bufpos - trackWidth)
+					startpos = baserec.bufpos - trackWidth;
 				curpos = trackWidth / 2;
 			}
 			else
@@ -1818,6 +1886,12 @@ void DrawMainScreen()
 			spFrame = 2;
 		}
 
+		ResetColor();
+
+		if (DrawButton(scrollback, scrollbackX, scrollbackY))
+		{
+			RecorderResetPlayPos();
+		}
 
 		//
 		ResetColor();
@@ -1959,10 +2033,23 @@ void DrawMainScreen()
 			MasterRec(baserec);
 		}
 
+		if (DrawButton(fftnorm, fftnormX, fftnormY))
+		{
+			RECLONGOP(SmoothRecByFFT, "FFT Normalize");
+			ResetInput();
+		}
+
 		if (DrawButton(liftup, liftupX, liftupY))
 		{
-			LiftRec();
+			if(MessageBox(mainWnd, "Restore the previous tape?", "Tape Restore", MB_YESNO | MB_ICONQUESTION) == IDYES)
+				LiftRec();
 		}
+
+		if (DrawButton(invert, invertX, invertY))
+		{
+			InvertRec();
+		}
+
 
 		///////////////////////////////////////////////////////////
 		//if (!IsRecorderRegionSet())
@@ -2020,9 +2107,10 @@ void DrawMainScreen()
 
 					if (DrawButton(remnoise, trackxadj + remnoiseX + selection_begin, trackY + selection_height + remnoiseY))
 					{
-						RecorderReduceNoiseInRegion();
+						RECLONGOP(RecorderReduceNoiseInRegion, "Noise Reduction");
 						//RecorderApplyAutoNote();
 						selected = false;
+						ResetInput();
 					}
 
 					DrawPicture(scissors, trackxadj + selection_begin, trackY + selection_height + pictures[mute[0]].height + 8);
@@ -2156,10 +2244,10 @@ void DrawMainScreen()
 			}
 		}
 
-		if (KeyTrig(DIK_F3))
-		{
-			SmoothRecByFFT();
-		}
+		//if (KeyTrig(DIK_F3))
+		//{
+//			SmoothRecByFFT();
+//		}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2472,12 +2560,76 @@ void MakeScreenshot(std::string filename = "")
 
 }
 
+std::string note_amp, note_instr, note_mic, note_pre, note_spkr;
+char notebuf[256] = { 0 };
+
+static HWND dlgWnd = 0;
+
+INT_PTR CALLBACK RecNotesDialogProc(HWND hwndDlg,
+	UINT message,
+	WPARAM wParam,
+	LPARAM lParam)
+{
+	dlgWnd = hwndDlg;
+
+	switch (message)
+	{
+	case WM_INITDIALOG:
+		SetDlgItemText(dlgWnd, IDC_NOTEAMP, note_amp.c_str());
+		SetDlgItemText(dlgWnd, IDC_NOTEINSTR, note_instr.c_str());
+		SetDlgItemText(dlgWnd, IDC_NOTEMIC, note_mic.c_str());
+		SetDlgItemText(dlgWnd, IDC_NOTEPRE, note_pre.c_str());
+		SetDlgItemText(dlgWnd, IDC_NOTESPKR, note_spkr.c_str());
+
+		SendMessage(GetDlgItem(dlgWnd, IDC_FILL), BM_SETSTYLE, BS_PUSHBUTTON | BS_DEFPUSHBUTTON, 0);
+		SetFocus(dlgWnd);
+		return false;
+
+	case WM_COMMAND:
+		switch (LOWORD(wParam))
+		{
+		//case IDOK:
+		case IDC_FILL:
+
+			GetDlgItemText(dlgWnd, IDC_NOTEAMP, notebuf, 256);
+			note_amp = notebuf;
+
+			GetDlgItemText(dlgWnd, IDC_NOTEINSTR, notebuf, 256);
+			note_instr = notebuf;
+
+			GetDlgItemText(dlgWnd, IDC_NOTEMIC, notebuf, 256);
+			note_mic = notebuf;
+
+			GetDlgItemText(dlgWnd, IDC_NOTEPRE, notebuf, 256);
+			note_pre = notebuf;
+
+			GetDlgItemText(dlgWnd, IDC_NOTESPKR, notebuf, 256);
+			note_spkr = notebuf;
+
+			EndDialog(dlgWnd, 0);
+			return FALSE;
+		}
+		break;
+
+	case WM_CLOSE:
+		EndDialog(dlgWnd, 0);
+		return FALSE;
+	}
+	return FALSE;
+}
+
+float stat_spectrum[1024];
+
+void BuildStatisticsSpecturms()
+{
+	RecorderBuildMediumSpectrum(stat_spectrum, 512);
+
+	FFTBuildMediumSpectrum(baserec.recbuf, baserec.bufpos, FFTLEN, true);
+}
+
 void DrawStatisticsScreen()
 {
 	DrawPicture(statsback, 0, 0);
-
-	float spectrum[1024];
-	RecorderBuildMediumSpectrum(spectrum, 512);
 
 	SetColor(255, 255, 255, 255);
 
@@ -2534,18 +2686,38 @@ void DrawStatisticsScreen()
 		SetColor(0, 0, 0, 255);
 
 		//float ioff = (float)i / 2.0f;
-		float len = spectrum[i] * 33.0f;
+		float len = stat_spectrum[i] * 33.0f;
 		DrawPicture(px1, graphX + i, graphY - len, 1, 1);
 
 	}
 
-	FFTBuildMediumSpectrum(baserec.recbuf, baserec.bufpos, 1024);
+	float multiplier = 60.0f;
 
-	for (int i = 1; i < FFTSMOOTHLEN / 2 + 1; ++i)
+	for (int i = 1; i < FFTLEN / 2 + 1; ++i)
 	{
-		SetColor(fft_spec_real[i] * 255.0f, fft_spec_imag[i] * 255.0f, 0.0, 255);
+		SetColor(fft_spec_real[i] * multiplier * 255.0f, fft_spec_imag[i] * multiplier * 255.0f, 0.0, 255);
 		DrawPicture(px1, graphX + i - 1, graphY + graphHeight + 32, 1, 25);
 	}
+	
+	ResetColor();
+
+	float notesX  = 305, notesY = 320;
+	const float notesYoffset = 23;
+
+	DrawText(font, notesX, notesY, notesX + 150, notesY + 20, D3DCOLOR_RGBA(255, 255, 255, 255), note_amp.c_str());
+	notesY += notesYoffset;
+
+	DrawText(font, notesX, notesY, notesX + 150, notesY + 20, D3DCOLOR_RGBA(255, 255, 255, 255), note_instr.c_str());
+	notesY += notesYoffset;
+
+	DrawText(font, notesX, notesY, notesX + 150, notesY + 20, D3DCOLOR_RGBA(255, 255, 255, 255), note_mic.c_str());
+	notesY += notesYoffset;
+
+	DrawText(font, notesX, notesY, notesX + 150, notesY + 20, D3DCOLOR_RGBA(255, 255, 255, 255), note_pre.c_str());
+	notesY += notesYoffset;
+
+	DrawText(font, notesX, notesY, notesX + 150, notesY + 20, D3DCOLOR_RGBA(255, 255, 255, 255), note_spkr.c_str());
+	notesY += notesYoffset;
 
 
 	ResetColor();
@@ -2555,18 +2727,25 @@ void DrawStatisticsScreen()
 
 	if (!makescreenshot)
 	{
-		if (DrawButton(savescreen, savescreenX, savescreenY))
+		if (DrawButton(savescreen, savescreenX, savescreenY) || KeyTrig(DIK_RETURN))
 		{
 			if (HelperGetSaveFileName(screenshotfilename))
 			{
 				makescreenshot = true;
 			}
+			ResetInput();
 		}
 	}
 	else
 	{
 		MakeScreenshot(screenshotfilename);
 		makescreenshot = false;
+	}
+
+	if (DrawButton(fillnote, fillnoteX, fillnoteY) || KeyTrig(DIK_F2))
+	{
+		DialogBox(mainInstance, MAKEINTRESOURCE(IDD_RECNOTES), mainWnd, RecNotesDialogProc);
+		ResetInput();
 	}
 
 	if (KeyTrig(DIK_ESCAPE))
@@ -2579,6 +2758,8 @@ void DrawStatisticsScreen()
 
 int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 {
+	mainInstance = hInst;
+
 	InitFolders();
 
 
@@ -2795,6 +2976,24 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 			quitInfoOverImage = temp->Attribute("onMouseOver");
 		}
 
+		if (strcmp(id, "fillnote") == 0)
+		{
+			temp->Attribute("x", &fillnoteX);
+			temp->Attribute("y", &fillnoteY);
+			fillnoteImage = temp->Attribute("image");
+			fillnoteOverImage = temp->Attribute("onMouseOver");
+		}
+
+		if (strcmp(id, "scrollback") == 0)
+		{
+			temp->Attribute("x", &scrollbackX);
+			temp->Attribute("y", &scrollbackY);
+			scrollbackImage = temp->Attribute("image");
+			scrollbackOverImage = temp->Attribute("onMouseOver");
+		}
+
+
+
 
 		if ( strcmp(id, "hide") == 0 )
 		{
@@ -2879,6 +3078,15 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 			masterOverImage = temp->Attribute("onMouseOver");
 		}
 
+		if (strcmp(id, "fftnorm") == 0)
+		{
+			temp->Attribute("x", &fftnormX);
+			temp->Attribute("y", &fftnormY);
+			fftnormImage = temp->Attribute("image");
+			fftnormOverImage = temp->Attribute("onMouseOver");
+		}
+
+
 		if (strcmp(id, "savescreen") == 0)
 		{
 			temp->Attribute("x", &savescreenX);
@@ -2895,6 +3103,15 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 			liftUpImage = temp->Attribute("image");
 			liftUpOverImage = temp->Attribute("onMouseOver");
 		}
+
+		if (strcmp(id, "invert") == 0)
+		{
+			temp->Attribute("x", &invertX);
+			temp->Attribute("y", &invertY);
+			invertImage = temp->Attribute("image");
+			invertOverImage = temp->Attribute("onMouseOver");
+		}
+
 
 		if (strcmp(id, "cutto") == 0)
 		{
@@ -3223,6 +3440,12 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 	quitinfo[0] = LoadPicture("images/" + quitInfoImage);
 	quitinfo[1] = LoadPicture("images/" + quitInfoOverImage);
 
+	fillnote[0] = LoadPicture("images/" + fillnoteImage);
+	fillnote[1] = LoadPicture("images/" + fillnoteOverImage);
+
+	scrollback[0] = LoadPicture("images/" + scrollbackImage);
+	scrollback[1] = LoadPicture("images/" + scrollbackOverImage);
+
 	hide[0] = LoadPicture("images/" + hideImage);
 	hide[1] = LoadPicture("images/" + hideOverImage);
 
@@ -3301,11 +3524,17 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 	master[0] = LoadPicture("images/" + masterImage);
 	master[1] = LoadPicture("images/" + masterOverImage);
 
+	fftnorm[0] = LoadPicture("images/" + fftnormImage);
+	fftnorm[1] = LoadPicture("images/" + fftnormOverImage);
+
 	savescreen[0] = LoadPicture("images/" + savescreenImage);
 	savescreen[1] = LoadPicture("images/" + savescreenOverImage);
 
 	liftup[0] = LoadPicture("images/" + liftUpImage);
 	liftup[1] = LoadPicture("images/" + liftUpOverImage);
+
+	invert[0] = LoadPicture("images/" + invertImage);
+	invert[1] = LoadPicture("images/" + invertOverImage);
 
 	cutto[0] = LoadPicture("images/" + cutToImage);
 	cutto[1] = LoadPicture("images/" + cutToOverImage);
@@ -3493,10 +3722,6 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 			{
 				spFrame = 3;
 			}
-			if (KeyTrig(DIK_F2))
-			{
-				spFrame = 4;
-			}
 		
 			/////////////////////////////////////////////////////////////
 			
@@ -3601,11 +3826,18 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 				MakeScreenshot();
 			}
 
+//			if (KeyTrig(DIK_F4))
+//			{
+//			}
+
 			//
 			if (KeyPressed(DIK_ESCAPE))
 			{
-				if( spFrame == 1)
-					PostQuitMessage(0);
+				if (spFrame == 1)
+				{
+					if (MessageBox(mainWnd, "Quit the Recorder?", "Qutting", MB_YESNO | MB_ICONQUESTION) == IDYES)
+						PostQuitMessage(0);
+				}
 			}
 
 			DWORD error = gaudio->GetError();

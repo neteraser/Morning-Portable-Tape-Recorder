@@ -271,6 +271,8 @@ void NoiseRed48khzProcess(float* buffer, int length, float hardness)
 			NRDropGain(outbuffer, buffer, noisespectrum, j, NRSPECTRUMLEN, 0.0003f, 0.1f);//0.99f - 1.0f / NRSPECTRUMLEN);
 
 			j += NRSPECTRUMLEN;// / 16;
+
+			RecorderReportProgress(p / 16.0f + j / (length * 16.0f));
 		}
 
 		NRLowPassFilter(outbuffer, length);
