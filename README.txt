@@ -67,3 +67,9 @@ Small bugfixes, but this is it so far.
 Noise Reduction effect was improved, the mathematical task is solved.
 
 This version also includes the AudioFFT library and is drawing the FFT spectrum on the Tonor screen, hence why it is now the contemporary Tonor screen.
+
+* v.0.8.0
+
+Major GUI update, now we're using a little of Win32 API's dialog boxes, but the MFC classes are still switched off, and this is still a true studio app, which is rendering itself through the Direct3D interface.
+
+Enjoy!
