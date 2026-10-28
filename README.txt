@@ -73,3 +73,9 @@ This version also includes the AudioFFT library and is drawing the FFT spectrum 
 Major GUI update, now we're using a little of Win32 API's dialog boxes, but the MFC classes are still switched off, and this is still a true studio app, which is rendering itself through the Direct3D interface.
 
 Enjoy!
+
+*v.0.9.0
+
+Version v.0.9.0 intoduces the MorningFX DLL Extension interface, allowing you to create your own effects as DLLs for this application in one touch. The interface is very simple, very transparent, it's kind of DarkBasic level, and this is the best way to start programming audioeffects.
+
+We're still debugging the app, it's not yet the release.
