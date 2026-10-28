@@ -35,6 +35,7 @@ extern int adcIntMaxNatural;
 std::string gfilename;
 
 bool bDoRewrites = true;
+bool bDisableUndo = false;
 
 float recQFX = 1.0f;
 
@@ -820,6 +821,12 @@ void StopRec(Record& rec)
 	//BASS_StreamFree(rec.record);
 
 	ReadRec();
+
+#ifdef RECHISTORICALLYINVERT
+	bDisableUndo = true;
+	InvertRec();
+	bDisableUndo = false;
+#endif
 
 	//if (! noRecDevice)
 	//{
@@ -2834,10 +2841,46 @@ void RecCalculatePeakInRegion()
 
 void InvertRec()
 {
+	if (!bDisableUndo)
+	{
+		if (undolevel < RECMAXUNDOLEVEL)
+			prevrec[undolevel++] = baserec;
+		else
+			return;
+	}
+
 	for (int i = 0; i < baserec.bufpos; ++i)
 	{
 		baserec.recbuf[i] -= 0.000001f;
 		baserec.recbuf[i] = -baserec.recbuf[i];
 		baserec.recbuf[i] += 0.000001f;
+	}
+}
+
+MorningFX* recMFX = 0;
+
+void RecorderSetMFX(MorningFX* fx)
+{
+	recMFX = fx;
+}
+
+void RecorderApplyMFX()
+{
+	if (!recMFX)
+		return;
+
+	if (undolevel < RECMAXUNDOLEVEL)
+		prevrec[undolevel++] = baserec;
+	else
+		return;
+
+	if (recMFX->GetEffectType() == MFXTYPE_GENERATOR)
+	{
+		baserec.bufpos = recMFX->ProcessEffect(baserec.recbuf, RECBUFSAMPLES(150), recQFX);
+		baserec.writepos = baserec.bufpos;
+	}
+	else
+	{
+		recMFX->ProcessEffect(baserec.recbuf, baserec.bufpos, recQFX);
 	}
 }

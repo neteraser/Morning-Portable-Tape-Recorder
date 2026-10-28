@@ -12,6 +12,10 @@
 	<button id="quitinfo" image="but_quitinfo.png" onMouseOver="but_quitinfo_over.png" x="780" y="480"/>
 	<button id="fillnote" image="but_fill.png" onMouseOver="but_fill_over.png" x="390" y="445"/>
 
+	<switch id="mfx" image1="but_mfxup.png" onMouseOver1="but_mfxup_over.png" x="20" y="390"
+		image2="but_mfxdown.png" onMouseOver2="but_mfxdown_over.png"  />
+
+
 	<switch id="normalize" image1="but_normalize.png" onMouseOver1="but_normalize_over.png" x="215" y="465"
 			image2="but_limit.png" onMouseOver2="but_limit_over.png"  />
 

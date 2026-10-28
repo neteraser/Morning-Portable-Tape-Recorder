@@ -17,6 +17,8 @@
 #include "UpdatingResources.h"
 #include "resourcecompiler.h"
 
+#include "morningfx.h"
+
 #include <vector>
 #include <map>
 #include <string>
@@ -29,7 +31,7 @@
 HWND mainWnd;
 HINSTANCE mainInstance;
 
-#define RECORDER_VERSION_STRING "Version v.0.7.1"
+#define RECORDER_VERSION_STRING "Version v.0.9.0"
 
 const char* diskName = "PortableTapeRecorder";
 const char* diskDesc = "Portable Tape Recorder";
@@ -49,6 +51,8 @@ int windowLeft = 0;
 int windowTop = 0;
 
 bool disableWindowMovement = false;
+
+int curmfx = -1;
 
 IDirectInput* di = 0;
 IDirectInputDevice* keyboard = 0;
@@ -91,6 +95,9 @@ bool InitInput(HINSTANCE instance, HWND context)
 	return true;
 }
 
+int inputFrame = 0;
+int currentInputFrame = 0;
+
 float mouseX = 0;
 float mouseY = 0;
 float mousePrevX = 0;
@@ -103,26 +110,43 @@ char kbbuf[256];
 char kbbufPrev[256];
 
 DIMOUSESTATE mstate = { 0 };
+bool mouseL = false;
 bool bMouseClick = false;
 bool bMouseDoubleClick = false;
 
 bool MouseL()
+{
+	if (inputFrame != currentInputFrame)
+		return false;
+
+	return mouseL;
+}
+
+bool ServiceMouseL()
 {
 	return mstate.rgbButtons[0] & 255;
 }
 
 bool MouseClick()
 {
+	if (inputFrame != currentInputFrame)
+		return false;
+
 	return bMouseClick;
 }
 
 bool MouseDoubleClick()
 {
+	if (inputFrame != currentInputFrame)
+		return false;
 	return bMouseDoubleClick;
 }
 
 bool MouseInBox_WH(int x, int y, int w, int h)
 {
+	if (inputFrame != currentInputFrame)
+		return false;
+
 	if (mouseX > x && mouseX < x + w && mouseY > y && mouseY < y + h)
 		return true;
 
@@ -131,6 +155,9 @@ bool MouseInBox_WH(int x, int y, int w, int h)
 
 bool MouseInACircle(float cx, float cy, float r)
 {
+	if (inputFrame != currentInputFrame)
+		return false;
+
 	float dx = fabs(cx - mouseX);
 	float dy = fabs(cy - mouseY);
 	float dr = sqrtf(dx * dx + dy * dy);
@@ -141,6 +168,9 @@ bool MouseInACircle(float cx, float cy, float r)
 
 bool MouseClickInBox(int x, int y, int w, int h)
 {
+	if (inputFrame != currentInputFrame)
+		return false;
+
 	if (MouseClick() && MouseInBox_WH(x, y, w, h))
 		return true;
 	return false;
@@ -148,16 +178,25 @@ bool MouseClickInBox(int x, int y, int w, int h)
 
 int MouseMoveX()
 {
+	if (inputFrame != currentInputFrame)
+		return 0;
+
 	return mstate.lX;
 }
 
 int MouseMoveY()
 {
+	if (inputFrame != currentInputFrame)
+		return 0;
+
 	return mstate.lY;
 }
 
 bool KeyPressed(int k)
 {
+	if (inputFrame != currentInputFrame)
+		return false;
+
 	if (!keyboard)
 		return false;
 	else
@@ -169,6 +208,9 @@ bool KeyPressed(int k)
 
 bool KeyTrig(int k)
 {
+	if (inputFrame != currentInputFrame)
+		return false;
+
 	if (!keyboard)
 		return false;
 	else
@@ -258,14 +300,16 @@ void UpdateInput(HWND context)
 
 			bMouseClick = false;
 
-			if (MouseL())
+			if (ServiceMouseL())
 			{
+				mouseL = true;
 				if (isUp)
 					pressTime = timeTicks;
 				isUp = false;
 			}
 			else
 			{
+				mouseL = false;
 				if (!isUp)
 				{
 					if (timeTicks - pressTime < 250)
@@ -290,7 +334,7 @@ void UpdateInput(HWND context)
 		{
 			mouse->GetDeviceState(sizeof(DIMOUSESTATE), &mstate);
 
-			if (!MouseL())
+			if (!ServiceMouseL())
 				bMouseInputAllowed = true;
 
 			ZeroMemory(&mstate, sizeof(DIMOUSESTATE));
@@ -303,7 +347,20 @@ void ResetInput()
 {
 	bKeyboardInputAllowed = false;
 	bMouseInputAllowed = false;
-	//ZeroMemory(kbbufPrev, 256);
+
+	ZeroMemory(kbbuf, 256);
+	ZeroMemory(kbbufPrev, 256);
+	mouseL = false;
+	bMouseClick = false;
+	bMouseDoubleClick = false;
+	mouseX = 0.0f;
+	mouseY = 0.0f;
+}
+
+void ChangeInputFrame(int frame)
+{
+	inputFrame = frame;
+	ResetInput();
 }
 
 IDirect3DDevice9* d3dd = 0;
@@ -433,6 +490,11 @@ void DrawText(ID3DXFont* font, int l, int t, int r, int b, unsigned clr, const c
   font->DrawTextA(0, buf, strlen(buf), &rr, DT_CENTER|DT_VCENTER, clr);
 
   va_end(list);
+}
+
+void AppDrawText(const char* str, float l, float t, float r, float b, unsigned clr)
+{
+	DrawText(font, l, t, r, b, clr, str);
 }
 
 void DrawStartupScreen()
@@ -591,6 +653,16 @@ void DrawPicture(int n, float i, float j, float ii = 0, float ij = 0, int ofx=0,
   SetPicture(n);
   
   d3dd->DrawIndexedPrimitiveUP(D3DPT_TRIANGLELIST, 0, 4, 2, idx, D3DFMT_INDEX16, &v[0], sizeof(vtx_t));
+}
+
+// wrapper
+int AppLoadPicture(const char* filename)
+{
+	return LoadPicture(filename);
+}
+void AppDrawPicture(int picn, float x, float y, float w, float h)
+{
+	DrawPicture(picn, x, y, w, h);
 }
 
 bool noButtonIsOver = true;
@@ -1093,6 +1165,39 @@ void DeviceCheck()
 	allDevRecNames = gaudio->recDevices;
 }
 
+void InitialDeviceCheck()
+{
+	DeviceCheck();
+
+	std::string devname = cursettings.device;
+	for (int i = 0; i < allDevNames.size(); ++i)
+	{
+		if (allDevNames[i] == devname)
+		{
+			gaudio->SetDevice(i);
+			curDevNum = i;
+			break;
+		}
+	}
+
+	std::string recdevname = cursettings.recdevice;
+	for (int i = 0; i < allDevRecNames.size(); ++i)
+	{
+		if (allDevRecNames[i] == recdevname)
+		{
+			gaudio->SetRecDevice(i);
+			curRecDevNum = i;
+			break;
+		}
+	}
+}
+
+void ResetSavedDevices()
+{
+	ZeroMemory(cursettings.device, 256);
+	ZeroMemory(cursettings.recdevice, 256);
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 
 int tapeSlowdownSamples = 2;
@@ -1115,6 +1220,7 @@ specbutX = 725, specbutY = 50,
 quitX = 473, quitY = 267,
 quitinfoX = 780, quitinfoY = 480,
 fillnoteX = 390, fillnoteY = 450,
+butmfxX = 20, butmfxY = 400,
 scrollbackX = 120, scrollbackY = 465,
 equalizerY = 255, eqCropLeft = 1, eqCropRight = 0,
 meterX = 850, meterY = 110, meterWidth = 36, meterHeight = 320, meterOffsetX = 3, meterOffsetY = 5,
@@ -1139,11 +1245,14 @@ cuttoX = 0, cuttoY = 0, cutoutX = 60, cutoutY = 0, muteX = 120, muteY = 0, auton
 capnoiseX = 60, remnoiseX= 180, capnoiseY = 20, remnoiseY = 20;
 
 double regulatorDefaultValue = 0.5;
+double regulatorCurrentValue = 0.5;
 
 std::string
 quitImage, quitOverImage,
 quitInfoImage, quitInfoOverImage,
 fillnoteImage, fillnoteOverImage,
+mfxImage, mfxOverImage,
+mfx2Image, mfx2OverImage,
 scrollbackImage, scrollbackOverImage,
 hideImage, hideOverImage,
 infoButImage, infoButOverImage,
@@ -1198,9 +1307,12 @@ int back;
 int info;
 int settingsback;
 int statsback;
+int mfxmenu;
 int quit[2];
 int quitinfo[2];
 int fillnote[2];
+int butmfx[2];
+int butmfx2[2];
 int scrollback[2];
 int hide[2];
 int infobut[2];
@@ -1290,6 +1402,16 @@ static bool drawdebugscreen = false;
 //extern float gimag[];
 
 #include "morningfftsmoothing.h"
+
+
+float stat_spectrum[1024];
+
+void BuildStatisticsSpecturms()
+{
+	RecorderBuildMediumSpectrum(stat_spectrum, 512);
+
+	FFTBuildMediumSpectrum(baserec.recbuf, baserec.bufpos, FFTLEN, true);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1765,7 +1887,8 @@ void DrawMainScreen()
 		}
 
 		static int clrwav[3][3] = { {0, 255, 0 }, {255, 255, 0}, {0, 255, 255} };
-		static int currentclr = 0;
+		
+		int currentclr = cursettings.coloration;
 
 		//				SetColor(0, 0, 0, 255);
 		for (int i = 0; i < 3; ++i)
@@ -1779,6 +1902,7 @@ void DrawMainScreen()
 				{
 					currentclr = i;
 					RecorderSetColoration(currentclr);
+					cursettings.coloration = currentclr;
 				}
 			}
 
@@ -1924,7 +2048,7 @@ void DrawMainScreen()
 		DrawPicture(regulating? regulatorpressimg : regulatorimg, regulatorX, regulatorY);
 
 		//static float 
-		static float ptrv = (1.0f - regulatorDefaultValue) * 300.0f + 30.0f;
+		static float ptrv = (1.0f - regulatorCurrentValue) * 300.0f + 30.0f;
 		float ptrx = (cosf(DegreesToRadians(-90.0f + ptrv)) + 1.0f) / 2.0f;
 		float ptry = (sinf(DegreesToRadians(-90.0f + ptrv)) + 1.0f) / 2.0f;
 		float regwidth = (float) pictures[regulatorimg].width;
@@ -2014,7 +2138,9 @@ void DrawMainScreen()
 
 		DrawPicture(regulatorptrimg, (float)regulatorX + ptrx, (float)regulatorY + ptry);
 
-		RecorderSetQFX(1.0f - (ptrv - 30.0f) / 300.0f);
+		regulatorCurrentValue = 1.0f - (ptrv - 30.0f) / 300.0f;
+		RecorderSetQFX(regulatorCurrentValue);
+		cursettings.rq = regulatorCurrentValue;
 
 		DrawText(font, statsX, statsY + 50, statsX + 150, statsY + 75, D3DCOLOR_RGBA(255, 255, 255, 128), "QFX: %.2f", RecorderGetQFX());
 
@@ -2248,6 +2374,95 @@ void DrawMainScreen()
 		//{
 //			SmoothRecByFFT();
 //		}
+
+					// mfx
+
+		static bool openmenu = false;
+
+		if (openmenu)
+		{
+			currentInputFrame += 1;
+			if (DrawButton(butmfx2, butmfxX, butmfxY) || KeyTrig(DIK_ESCAPE))
+			{
+				openmenu = false;
+				ChangeInputFrame(0);
+			}
+
+			const int maxShownMfxs = 7;
+
+			float x, y, w, h, hp;
+			w = pictures[mfxmenu].width;
+			h = 20;
+			x = butmfxX;
+			y = butmfxY - 5 - pictures[mfxmenu].height;
+			hp = pictures[mfxmenu].height;
+
+			ResetColor();
+			//SetColor(0, 32, 0, 255);
+			DrawPicture(mfxmenu, x, y);
+			ResetColor();
+			for (int i = 0; i < std::min(mfxNumber, maxShownMfxs); ++i)
+			{
+				float lx, ly, lw, lh;
+				lx = x + 5;
+				ly = y + 30 + i * 24;
+				lw = w - 10;
+				lh = h;
+
+				SetColor(200, 200, 200, 255);
+
+				std::string mfx_str = "";
+				mfx_str += mfx[0]->GetEffectName();
+				if (MouseInBox_WH(lx, ly, lw, lh))
+				{
+					SetColor(220, 220, 220, 255);
+					if (MouseClick())
+					{
+						curmfx = i;
+						ChangeInputFrame(1);
+						//mfx[i]->ProcessEffect(baserec.recbuf, baserec.bufpos);
+
+						openmenu = false;
+					}
+				}
+				DrawPicture(px1, lx, ly, lw, lh);
+				//SetColor(50, 50, 50, 255);
+				DrawText(font, lx, ly, lx + lw, ly + lh, D3DCOLOR_RGBA(50, 50, 50, 255), mfx_str.c_str());
+				ResetColor();
+			}
+
+			if (MouseClick() && !MouseInBox_WH(x, y, w, hp))
+			{
+				openmenu = false;
+				ChangeInputFrame(0);
+			}
+
+			currentInputFrame -= 1;
+		}
+		else
+		{
+			if (DrawButton(butmfx, butmfxX, butmfxY))
+			{
+				openmenu = true;
+				ChangeInputFrame(1);
+			}
+		}
+
+
+		currentInputFrame += 1;
+
+		if (curmfx >= 0)
+		{
+			SetColor(0, 0, 0, 64);
+			DrawPicture(px1, 0, 0, windowWidth, windowHeight);
+			ResetColor();
+			DrawMFX(curmfx);
+		}
+
+		currentInputFrame -= 1;
+
+
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2369,7 +2584,6 @@ void DrawSettingsScreen()
 			break;
 
 		std::string devname = allDevRecNames[id];
-		devname.resize(32);
 
 		ResetColor();
 
@@ -2398,6 +2612,8 @@ void DrawSettingsScreen()
 
 		ResetColor();
 
+		devname.resize(32);
+
 		DrawText(font, 50, 145 + i * 20, 400, 145 + i * 20 + 20, D3DCOLOR_RGBA(0, 0, 0, 255), devname.c_str());
 	}
 
@@ -2412,7 +2628,6 @@ void DrawSettingsScreen()
 			break;
 
 		std::string devname = allDevNames[id];
-		devname.resize(32);
 
 		ResetColor();
 
@@ -2443,6 +2658,8 @@ void DrawSettingsScreen()
 
 		ResetColor();
 
+		devname.resize(32);
+
 		DrawText(font, 500, 145 + i * 20, 850, 145 + i * 20 + 20, D3DCOLOR_RGBA(0, 0, 0, 255), devname.c_str());
 	}
 
@@ -2458,16 +2675,24 @@ void DrawSettingsScreen()
 		curDevNum = devNum;
 		curRecDevNum = recDevNum;
 		//BASS_SetDevice(devNum);
+
+		ZeroMemory(cursettings.device, 256);
+		ZeroMemory(cursettings.recdevice, 256);
+
+		memcpy(cursettings.device, allDevNames[devNum].c_str(), std::min((int)allDevNames[devNum].size(),256));
+		memcpy(cursettings.recdevice, allDevRecNames[recDevNum].c_str(), std::min((int)allDevRecNames[recDevNum].size(), 256));
+
 	}
 
-	static int librarynumber = 0;
+	int librarynumber = GetCurrentAudioLibraryNumber();
 
 	if (DrawChecker(basslib, bassX, bassY, librarynumber == 1))
 	{
 		RefreshDeviceChoice();
 		librarynumber = 1;
 		SwitchAudioLibrary(librarynumber, mainWnd, RECBUFFERDELAYMS);
-		RecorderSetCallbacks();
+		cursettings.audiolibrary = librarynumber;
+		ResetSavedDevices();
 	}
 
 	if (DrawChecker(portylib, portyX, portyY, librarynumber == 0))
@@ -2475,23 +2700,26 @@ void DrawSettingsScreen()
 		RefreshDeviceChoice();
 		librarynumber = 0;
 		SwitchAudioLibrary(librarynumber, mainWnd, RECBUFFERDELAYMS);
-		RecorderSetCallbacks();
+		cursettings.audiolibrary = librarynumber;
+		ResetSavedDevices();
 	}
 
 	/////////////////////
 
-	static int delaymode = 0;
+	int delaymode = cursettings.delaymode;
 
 	if (DrawChecker(delayslow, delayslowX, delayslowY, delaymode == 1))
 	{
 		delaymode = 1;
 		RecorderSetStretchSamples(tapeSlowdownSamples);
+		cursettings.delaymode = delaymode;
 	}
 
 	if (DrawChecker(delayfast, delayfastX, delayfastY, delaymode == 0))
 	{
 		delaymode = 0;
 		RecorderSetStretchSamples(tapeSlowdownMode2Samples);
+		cursettings.delaymode = delaymode;
 	}
 
 	////////////////////////
@@ -2616,15 +2844,6 @@ INT_PTR CALLBACK RecNotesDialogProc(HWND hwndDlg,
 		return FALSE;
 	}
 	return FALSE;
-}
-
-float stat_spectrum[1024];
-
-void BuildStatisticsSpecturms()
-{
-	RecorderBuildMediumSpectrum(stat_spectrum, 512);
-
-	FFTBuildMediumSpectrum(baserec.recbuf, baserec.bufpos, FFTLEN, true);
 }
 
 void DrawStatisticsScreen()
@@ -2753,6 +2972,51 @@ void DrawStatisticsScreen()
 		spFrame = 1;
 	}
 }
+////////////////////////////////////////////////////////////////////////////////
+CurrentSettings cursettings;
+
+void SaveCurrentSettings()
+{
+	FILE* file = fopen(getAppFileName("currentsettings.bin"), "wb+");
+	if (file != 0)
+	{
+		fwrite(&cursettings, sizeof(CurrentSettings), 1, file);
+		fclose(file);
+	}
+}
+
+void ResetCurrentSettings()
+{
+	cursettings.structversion = CURRENTSETTINGSVERSION;
+	cursettings.coloration = 0;
+	cursettings.audiolibrary = 0;
+	cursettings.delaymode = 0;
+	cursettings.rq = 0.0f;
+	ZeroMemory(cursettings.device, 256);
+	ZeroMemory(cursettings.recdevice, 256);
+}
+
+void RestoreCurrentSettings()
+{
+	FILE* file = fopen(getAppFileName("currentsettings.bin"), "rb");
+	if (file != 0)
+	{
+		if (fread(&cursettings, sizeof(CurrentSettings), 1, file) != 1)
+		{
+			ResetCurrentSettings();
+		}
+		if (cursettings.structversion != CURRENTSETTINGSVERSION)
+		{
+			ResetCurrentSettings();
+		}
+
+		fclose(file);
+	}
+	else
+	{
+		ResetCurrentSettings();
+	}
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2762,6 +3026,9 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 
 	InitFolders();
 
+	ResetCurrentSettings();
+
+	RestoreCurrentSettings();
 
 	InitLog("errorlog.txt");
 	WriteToLog("Portable Tape Recorder, log started...");
@@ -2872,6 +3139,9 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 
 	// init bass with default device, at 44.1khz, default flags, main window, default class
 	//if (! BASS_Init(-1, 48000, BASS_DEVICE_MONO, mainWnd, 0))
+
+	SetInitialAudioLibrary(cursettings.audiolibrary);
+
 	if( !gaudio->Init(mainWnd, RECBUFFERDELAYMS) )
 	{
 		MessageBoxA(0, "Audio library failed!", "Sorry!", MB_ICONERROR | MB_OK);
@@ -2939,6 +3209,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 				regulatorDefaultValue = 0.1;
 			if (regulatorDefaultValue > 1.0)
 				regulatorDefaultValue = 1.0;
+			regulatorCurrentValue = regulatorDefaultValue;
 			temp->Attribute("x", &regulatorX);
 			temp->Attribute("y", &regulatorY);
 			temp->Attribute("diameter", &regulatorDiameter);
@@ -2950,6 +3221,9 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 		temp = temp->NextSiblingElement("regulator");
 	}
 
+	regulatorCurrentValue = cursettings.rq;
+	if (regulatorCurrentValue == 0.0)
+		regulatorCurrentValue = regulatorDefaultValue;
 
 	temp = elem->FirstChildElement("button");
 
@@ -3261,6 +3535,15 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 			offOverImage = temp->Attribute("onMouseOver2");
 		}
 
+		if (strcmp(id, "mfx") == 0)
+		{
+			temp->Attribute("x", &butmfxX);
+			temp->Attribute("y", &butmfxY);
+			mfxImage = temp->Attribute("image1");
+			mfxOverImage = temp->Attribute("onMouseOver1");
+			mfx2Image = temp->Attribute("image2");
+			mfx2OverImage = temp->Attribute("onMouseOver2");
+		}
 
 		temp = temp->NextSiblingElement("switch");
 	}
@@ -3366,6 +3649,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 		temp = temp->NextSiblingElement("checker");
 	}
 
+	RecorderSetColoration(cursettings.coloration);
+
 
 	//////////////////////////////////////////////////////////////
 
@@ -3434,6 +3719,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 
 	statsback = LoadPicture("images/statsback.png");
 
+	mfxmenu = LoadPicture("images/mfxmenu.png");
+
 	quit[0] = LoadPicture("images/" + quitImage);
 	quit[1] = LoadPicture("images/" + quitOverImage);
 
@@ -3442,6 +3729,12 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 
 	fillnote[0] = LoadPicture("images/" + fillnoteImage);
 	fillnote[1] = LoadPicture("images/" + fillnoteOverImage);
+
+	butmfx[0] = LoadPicture("images/" + mfxImage);
+	butmfx[1] = LoadPicture("images/" + mfxOverImage);
+
+	butmfx2[0] = LoadPicture("images/" + mfx2Image);
+	butmfx2[1] = LoadPicture("images/" + mfx2OverImage);
 
 	scrollback[0] = LoadPicture("images/" + scrollbackImage);
 	scrollback[1] = LoadPicture("images/" + scrollbackOverImage);
@@ -3648,13 +3941,17 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 
 	////////////////////////////////////////////////////////////////
 
-	DeviceCheck();
+	InitialDeviceCheck();
 
 	//static DWORD bassdevice = BASS_GetDevice();
 	
 	//static DWORD bassrecorddevice = BASS_RecordGetDevice();
 
 	BuildResourceLink("precompiledresources/resources.cpp");
+
+	///////////////////////////////////////////////////////////////
+
+	LoadMFXs("mfxlist.xml");
 
 	///////////////////////////////////////////////////////////////
  
@@ -3673,6 +3970,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 		else 
 		{
 			DWORD time0 = timeGetTime();
+
+			currentInputFrame = 0;
 
 			UpdateInput(mainWnd);
 			
@@ -3731,6 +4030,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 			{
 				RecorderDeviceRetrieve();
 			}*/
+
+
 
 			// window move
 
@@ -3826,6 +4127,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 				MakeScreenshot();
 			}
 
+
 //			if (KeyTrig(DIK_F4))
 //			{
 //			}
@@ -3903,6 +4205,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
     Shell_NotifyIcon(NIM_DELETE, &notifyIconData);
   }
 	
+	FreeMFXs();
+
 	//SaveRec();
 
 	FreeSounds();
@@ -3911,7 +4215,131 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 
 	DestroyWindow(mainWnd);
 
+	SaveCurrentSettings();
+
 	CloseLog();
 
 	return 0;
 }
+
+//////////////////////////////////////////////////////////////////////////////////////
+//// MORNING PORTABLE TAPE RECORDER FOR YOU
+//////////////////////////////////////////////////////////////////////////////////////
+
+int MyAppInterface::LoadPicture(const char* filename)
+{
+	return ::LoadPicture(filename);
+}
+
+void MyAppInterface::DrawPicture(int n, float x, float y, float w, float h)
+{
+	::DrawPicture(n, x, y, w, h);
+}
+
+int MyAppInterface::GetWindowWidth()
+{
+	return windowWidth;
+}
+
+int MyAppInterface::GetWindowHeight()
+{
+	return windowHeight;
+}
+
+bool MyAppInterface::DrawButton(int* pics, float x, float y)
+{
+	return (bool)(::DrawButton(pics, x, y) == 1);
+}
+
+void MyAppInterface::DrawString(const char* str, float l, float t, float r, float b)
+{
+	::DrawText(font, l, t, r, b, curclr, str);
+}
+
+void MyAppInterface::ApplyEffect(MorningFX* fx, bool longorshotop)
+{
+	RecorderSetMFX(fx);
+	if (longorshotop)
+	{
+		RECLONGOP(RecorderApplyMFX, fx->GetEffectName());
+	}
+	else
+	{
+		RecorderApplyMFX();
+	}
+//	CloseEffect();
+}
+
+void MyAppInterface::CloseEffect()
+{
+	curmfx = -1;
+	ChangeInputFrame(0);
+}
+
+void MyAppInterface::ReportEffectProgress(float prog)
+{
+	RecorderReportProgress(prog);
+}
+
+bool MyAppInterface::KeyPressed(int k)
+{
+	return ::KeyPressed(k);
+}
+
+bool MyAppInterface::KeyTrigged(int k)
+{
+	return ::KeyTrig(k);
+}
+
+bool MyAppInterface::MouseL()
+{
+	return ::MouseL();
+}
+
+bool MyAppInterface::MouseClick()
+{
+	return ::MouseClick();
+}
+
+bool MyAppInterface::MouseDoubleClick()
+{
+	return ::MouseDoubleClick();
+}
+
+int MyAppInterface::MouseX()
+{
+	return (int)mouseX;
+}
+
+int MyAppInterface::MouseY()
+{
+	return (int)mouseY;
+}
+
+int MyAppInterface::MouseMoveX()
+{
+	return ::MouseMoveX();
+}
+
+int MyAppInterface::MouseMoveY()
+{
+	return ::MouseMoveY();
+}
+
+bool MyAppInterface::MouseInBox(int x, int y, int w, int h)
+{
+	return ::MouseInBox_WH(x, y, w, h);
+}
+
+void MyAppInterface::SetColor(int r, int g, int b, int a)
+{
+	curclr = D3DCOLOR_RGBA(r, g, b, a);
+	::SetColor(r, g, b, a);
+}
+
+void MyAppInterface::ResetColor()
+{
+	::ResetColor();
+}
+
+MyAppInterface appinterface;

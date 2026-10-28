@@ -434,8 +434,36 @@ PortYTrackLibraryWrapper portytrackAudio;
 
 RecAudioLibrary* gaudio = &portytrackAudio;
 
+int currentaudiolibrary = 0;
+
+void SetInitialAudioLibrary(int audiolibrarynumber)
+{
+	switch (audiolibrarynumber)
+	{
+	case AUDIOLIBNUMBER_PORTYTRACK:
+		currentaudiolibrary = AUDIOLIBNUMBER_PORTYTRACK;
+		gaudio = &portytrackAudio;
+		break;
+#ifdef RECUSEBASSLIB
+	case AUDIOLIBNUMBER_BASS:
+		currentaudiolibrary = AUDIOLIBNUMBER_BASS;
+		gaudio = &bassAudio;
+		break;
+#else
+	case AUDIOLIBNUMBER_BASS:
+		WriteToLog("BASS Library was switched off in this build.");
+#endif
+	default:
+		currentaudiolibrary = AUDIOLIBNUMBER_PORTYTRACK;
+		gaudio = &portytrackAudio;
+	}
+}
+
 bool SwitchAudioLibrary(int audiolibrarynumber, HWND wnd, int delay)
 {
+	if (audiolibrarynumber == currentaudiolibrary)
+		return true;
+
 	if (audiolibrarynumber < 0)
 		return false;
 	if (audiolibrarynumber >= MAXAUDIOLIBRARIES)
@@ -447,24 +475,10 @@ bool SwitchAudioLibrary(int audiolibrarynumber, HWND wnd, int delay)
 		WriteToLog("Audio library Free at switching libraries failed");
 		return false;
 	}
-	switch (audiolibrarynumber)
-	{
-	case AUDIOLIBNUMBER_PORTYTRACK:
-		gaudio = &portytrackAudio;
-		break;
-#ifdef RECUSEBASSLIB
-	case AUDIOLIBNUMBER_BASS:
-		gaudio = &bassAudio;
-		break;
-#else
-	case AUDIOLIBNUMBER_BASS:
-		WriteToLog("BASS Library was switched off in this build.");
-#endif
-	default:
-		gaudio = &portytrackAudio;
-	}
-	
-	Sleep(500);
+
+	SetInitialAudioLibrary(audiolibrarynumber);
+
+	Sleep(33);
 
 	if (!gaudio->Init(wnd, delay))
 	{
@@ -474,7 +488,14 @@ bool SwitchAudioLibrary(int audiolibrarynumber, HWND wnd, int delay)
 
 	gaudio->EnumerateDevices();
 
-	Sleep(500);
+	Sleep(33);
+
+	RecorderSetCallbacks();
 
 	return true;
+}
+
+int GetCurrentAudioLibraryNumber()
+{
+	return currentaudiolibrary;
 }

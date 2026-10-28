@@ -105,6 +105,10 @@ public:
 #define AUDIOLIBNUMBER_PORTYTRACK 0
 #define AUDIOLIBNUMBER_BASS 1
 
+void SetInitialAudioLibrary(int audiolibrarynumber);
+
 bool SwitchAudioLibrary(int audiolibrarynumber, HWND wnd, int delay);
+
+int GetCurrentAudioLibraryNumber();
 
 extern RecAudioLibrary* gaudio;

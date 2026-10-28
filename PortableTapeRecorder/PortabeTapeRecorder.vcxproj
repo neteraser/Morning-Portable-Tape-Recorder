@@ -104,6 +104,7 @@
     <ClCompile Include="log.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="morningfftsmoothing.cpp" />
+    <ClCompile Include="morningfx.cpp" />
     <ClCompile Include="morningnoisereduction.cpp" />
     <ClCompile Include="morningreverb.cpp" />
     <ClCompile Include="precompiledresources\resources.cpp">
@@ -118,13 +119,13 @@
     <ClCompile Include="xml\tinyxmlparser.CPP" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="afxres.h" />
     <ClInclude Include="AudioFFT.h" />
     <ClInclude Include="AudioFile.h" />
     <ClInclude Include="audiolibwrapper.h" />
     <ClInclude Include="log.h" />
     <ClInclude Include="main.h" />
     <ClInclude Include="morningfftsmoothing.h" />
+    <ClInclude Include="morningfx.h" />
     <ClInclude Include="morningnoisereduction.h" />
     <ClInclude Include="morningreverb.h" />
     <ClInclude Include="recorder.h" />
@@ -141,6 +142,7 @@
     <ResourceCompile Include="TapeRecorder.rc" />
   </ItemGroup>
   <ItemGroup>
+    <Xml Include="mfxlist.xml" />
     <Xml Include="portabletaperecordersettings.xml" />
   </ItemGroup>
   <ItemGroup>

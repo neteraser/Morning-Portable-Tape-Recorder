@@ -35,6 +35,10 @@
 
 #define RECBEEPLENMAX (8192)
 
+#ifndef RECUNDOHISTORICALDECSISION
+#define RECHISTORICALLYINVERT (1)
+#endif
+
 struct Record
 {
 	HRECORD record;
@@ -604,6 +608,8 @@ const char* getDocumentsFileName(const char* filename);
 
 const char* getMusicFileName(const char* filename);
 
+const char* getAppFileName(const char* filename);
+
 void RecorderCaptureNoiseInRegion();
 
 void RecorderReduceNoiseInRegion();
@@ -623,3 +629,9 @@ void RecorderResetPlayPos();
 void RecCalculatePeakInRegion();
 
 void InvertRec();
+
+#include "morningfx.h"
+
+void RecorderSetMFX(MorningFX* fx);
+
+void RecorderApplyMFX();
