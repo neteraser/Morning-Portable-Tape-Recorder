@@ -31,7 +31,7 @@
 HWND mainWnd;
 HINSTANCE mainInstance;
 
-#define RECORDER_VERSION_STRING "Version v.0.9.0"
+#define RECORDER_VERSION_STRING "Version v.0.9.1"
 
 const char* diskName = "PortableTapeRecorder";
 const char* diskDesc = "Portable Tape Recorder";
