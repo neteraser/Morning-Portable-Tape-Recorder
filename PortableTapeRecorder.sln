@@ -11,6 +11,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "PortYTrack", "PortableTapeR
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "StandardEqMFX", "PortableTapeRecorder\StandardEqMFX\StandardEqMFX.vcxproj", "{74626E46-EBD2-431A-B229-4E3C0D4BA8EE}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SignalGenMFX", "PortableTapeRecorder\SignalGenMFX\SignalGenMFX.vcxproj", "{03A835B5-4F6B-436A-A377-166586872113}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x86 = Debug|x86
@@ -33,6 +35,10 @@ Global
 		{74626E46-EBD2-431A-B229-4E3C0D4BA8EE}.Debug|x86.Build.0 = Debug|Win32
 		{74626E46-EBD2-431A-B229-4E3C0D4BA8EE}.Release|x86.ActiveCfg = Release|Win32
 		{74626E46-EBD2-431A-B229-4E3C0D4BA8EE}.Release|x86.Build.0 = Release|Win32
+		{03A835B5-4F6B-436A-A377-166586872113}.Debug|x86.ActiveCfg = Debug|Win32
+		{03A835B5-4F6B-436A-A377-166586872113}.Debug|x86.Build.0 = Debug|Win32
+		{03A835B5-4F6B-436A-A377-166586872113}.Release|x86.ActiveCfg = Release|Win32
+		{03A835B5-4F6B-436A-A377-166586872113}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

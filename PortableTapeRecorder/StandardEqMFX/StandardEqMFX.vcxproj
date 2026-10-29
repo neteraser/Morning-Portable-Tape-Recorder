@@ -88,7 +88,7 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
-      <OutputFile>$(SolutionDir)$(SolutionName)\$(TargetName)$(TargetExt)</OutputFile>
+      <OutputFile>$(SolutionDir)$(SolutionName)\plugins\$(TargetName)$(TargetExt)</OutputFile>
       <OptimizeReferences>false</OptimizeReferences>
     </Link>
     <Manifest>
@@ -112,7 +112,9 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
-      <OutputFile>$(SolutionDir)\PortableTapeRecorder\$(TargetName)$(TargetExt)</OutputFile>
+      <OutputFile>$(SolutionDir)$(SolutionName)\plugins\$(TargetName)$(TargetExt)</OutputFile>
+      <OptimizeReferences>false</OptimizeReferences>
+      <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
     </Link>
     <Manifest>
       <EnableSegmentHeap>true</EnableSegmentHeap>

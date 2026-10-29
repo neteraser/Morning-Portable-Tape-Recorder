@@ -2412,7 +2412,7 @@ void DrawMainScreen()
 				SetColor(200, 200, 200, 255);
 
 				std::string mfx_str = "";
-				mfx_str += mfx[0]->GetEffectName();
+				mfx_str += mfx[i]->GetEffectName();
 				if (MouseInBox_WH(lx, ly, lw, lh))
 				{
 					SetColor(220, 220, 220, 255);
@@ -4339,6 +4339,7 @@ void MyAppInterface::SetColor(int r, int g, int b, int a)
 
 void MyAppInterface::ResetColor()
 {
+	curclr = 0xffffffff;
 	::ResetColor();
 }
 

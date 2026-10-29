@@ -79,3 +79,11 @@ Enjoy!
 Version v.0.9.0 intoduces the MorningFX DLL Extension interface, allowing you to create your own effects as DLLs for this application in one touch. The interface is very simple, very transparent, it's kind of DarkBasic level, and this is the best way to start programming audioeffects.
 
 We're still debugging the app, it's not yet the release.
+
+v.0.9.1
+
+Another MFX is provided to check the plugin interface does work as expected. Today it'a Signal Generation Plugin, generating 6 frequencies I use for debugging tube amplifier for electric guitar.
+
+The next minor releases v.0.9.1 --> v.1.0.0 will be extensive bug fixes, performace enhancements etc.
+
+We're preparing the release of some Legacy Application to be held exactly the way I've designed it for a long period of time.

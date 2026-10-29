@@ -1,0 +1,14 @@
+{
+    "version": 1,
+    "revision": 0,
+    "rules": [
+        {
+            "primary-output": "Debug\\mymfx.obj",
+            "outputs": [
+                "Debug\\mymfx.cpp.obj.dt.module.json",
+                "Debug\\mymfx.cpp.obj.dt.d.json"
+            ],
+            "requires": []
+        }
+    ]
+}

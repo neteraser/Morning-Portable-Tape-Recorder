@@ -1,0 +1,14 @@
+{
+    "version": 1,
+    "revision": 0,
+    "rules": [
+        {
+            "primary-output": "Debug\\signalgen.obj",
+            "outputs": [
+                "Debug\\signalgen.h.obj.dt.module.json",
+                "Debug\\signalgen.h.obj.dt.d.json"
+            ],
+            "requires": []
+        }
+    ]
+}
