@@ -87,3 +87,9 @@ Another MFX is provided to check the plugin interface does work as expected. Tod
 The next minor releases v.0.9.1 --> v.1.0.0 will be extensive bug fixes, performace enhancements etc.
 
 We're preparing the release of some Legacy Application to be held exactly the way I've designed it for a long period of time.
+
+v.0.9.2
+
+Neater graphics, some GFXs (fireworks), bugfixes, performance fixes.
+
+We're preparing the release.
