@@ -25,7 +25,7 @@ void SignalGenMFX::LoadEffect()
 
 	freqbut = app->LoadPicture("plugins/signalgen/freqbut.png");
 
-	px1 = app->LoadPicture("images/px1.png");
+	px1 = app->LoadPicture("images/1px.png");
 
 	popupX = app->GetWindowWidth() / 2 - popupWidth / 2;
 	popupY = app->GetWindowHeight() / 2 - popupHeight / 2;
@@ -111,7 +111,7 @@ void SignalGenMFX::DrawEffect()
 
 int SignalGenMFX::ProcessEffect(float* buffer, int length, float mix)
 {
-	length = 48000 * 10;
+	//length = 48000 * 10;
 	for (int i = 0; i < length; ++i)
 	{
 		buffer[i] = sinf(2.0f * REC_PI * frequencies[curfreq] * (float)i / 48000.0f) * mix;

@@ -23,6 +23,7 @@ struct Picture
 	IDirect3DTexture9* texture;
 	int width;
 	int height;
+	bool sendclick;
 };
 
 #define CURRENTSETTINGSVERSION (1)

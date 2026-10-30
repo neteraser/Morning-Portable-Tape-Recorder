@@ -801,7 +801,7 @@ void StopRec(Record& rec)
 	lastpushedsamplesmore = 0;
 	lastpushedsamplesless = 0;
 
-	//WriteRec(true);
+	WriteRec(true);
 
 	WriteToLog("Record stopped... ticktime: %i", timeGetTime());
 

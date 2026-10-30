@@ -9,7 +9,7 @@
 	<button id="hide" image="but_hide.png" onMouseOver="but_hide_over.png" x="815" y="50"/>
 	<button id="info" image="but_info.png" onMouseOver="but_info_over.png" x="765" y="50"/>
 	<button id="spec" image="but_spec.png" onMouseOver="but_spec_over.png" x="730" y="50"/>
-	<button id="quitinfo" image="but_quitinfo.png" onMouseOver="but_quitinfo_over.png" x="780" y="480"/>
+	<button id="quitinfo" image="but_quitinfo.png" onMouseOver="but_quitinfo_over.png" x="80" y="480"/>
 	<button id="fillnote" image="but_fill.png" onMouseOver="but_fill_over.png" x="390" y="445"/>
 
 	<switch id="mfx" image1="but_mfxup.png" onMouseOver1="but_mfxup_over.png" x="20" y="390"
@@ -28,16 +28,16 @@
 	<button id="settings" image="but_settings.png" onMouseOver="but_settings_over.png" x="500" y="25"/>
 	<button id="apply" image="but_apply.png" onMouseOver="but_apply_over.png" x="680" y="18"/>
 
-	<button id="reverb" image="but_reverb.png" onMouseOver="but_reverb_over.png" x="730" y="460"/>
-	<button id="superfi" image="but_superfi.png" onMouseOver="but_superfi_over.png" x="730" y="480"/>
-	<button id="master" image="but_render.png" onMouseOver="but_render_over.png" x="730" y="500"/>
-	<button id="fftnorm" image="but_fftnorm.png" onMouseOver="but_fftnorm_over.png" x="730" y="520"/>
+	<button id="reverb" image="but_reverb.png" onMouseOver="but_reverb_over.png" x="720" y="460"/>
+	<button id="superfi" image="but_superfi.png" onMouseOver="but_superfi_over.png" x="720" y="480"/>
+	<button id="master" image="but_render.png" onMouseOver="but_render_over.png" x="720" y="500"/>
+	<button id="fftnorm" image="but_fftnorm.png" onMouseOver="but_fftnorm_over.png" x="720" y="520"/>
 
 	<button id="savescreen" image="but_savescreen.png" onMouseOver="but_savescreen_over.png" x="420" y="495"/>
 
-	<button id="liftup" image="but_liftup.jpg" onMouseOver="but_liftup_over.jpg" x="850" y="455"/>
+	<button id="liftup" image="but_liftup.jpg" onMouseOver="but_liftup_over.jpg" x="845" y="455"/>
 
-	<button id="invert" image="but_invert.png" onMouseOver="but_invert_over.png" x="845" y="510"/>
+	<button id="invert" image="but_invert.png" onMouseOver="but_invert_over.png" x="840" y="510"/>
 
 	<button id="cutto" image="selbut_cutto.jpg" onMouseOver="selbut_cutto_over.jpg" x="0" y="2"/>
 	
@@ -73,7 +73,7 @@
 	<switch id="remaster"
 	image1="but_remaster.png" onMouseOver1="but_remaster_over.png"
 	image2="but_remaster_playing.png" onMouseOver2="but_remaster_playing_over.png"
-	x="550" y="465"
+	x="540" y="465"
 	/>
 
 	<switch id="loop"
@@ -90,22 +90,22 @@
 			image3="but_import.png" onMouseOver3="but_import_over.png"
 			x="215" y="495"/>
 
-	<regulator id="RQ" image="regulator.png" onPress="regulator_press.png" imagePtr="regulatorptr.png" x="650" y="465" diameter="60" defaultvalue="0.5" />
+	<regulator id="RQ" image="regulator.png" onPress="regulator_press.png" imagePtr="regulatorptr.png" x="640" y="465" diameter="60" defaultvalue="0.5" />
 
 	<track id="track" x="50" y="250" w="700" h="100" />
 
-	<meter id="meter" image="meter.png" x="850" y="100" w="36" h="320" offsetx="12" offsety="12"/>
+	<meter id="meter" image="meter.png" x="840" y="100" w="36" h="320" offsetx="12" offsety="12"/>
 
 	<equalizer y="435" cropLeft="1" cropRight="0"/>
 
 	<resources id="beep" sound="beepforme.wav" />
 
-	<checker id="basslib" image1="but_lib_bass.png" image2="but_lib_bass_on.png" x="60" y="480"/>
+	<checker id="basslib" image1="but_lib_bass.png" image2="but_lib_bass_on.png" x="70" y="460"/>
 
-	<checker id="portytracklib" image1="but_lib_portytrack.png" image2="but_lib_portytrack_on.png" x="240" y="480"/>
+	<checker id="portytracklib" image1="but_lib_portytrack.png" image2="but_lib_portytrack_on.png" x="240" y="460"/>
 
-	<checker id="delayfast" image1="but_delay_fast.png" image2="but_delay_fast_on.png" x="580" y="480"/>
+	<checker id="delayfast" image1="but_delay_fast.png" image2="but_delay_fast_on.png" x="560" y="460"/>
 
-	<checker id="delayslow" image1="but_delay_slow.png" image2="but_delay_slow_on.png" x="710" y="480"/>
+	<checker id="delayslow" image1="but_delay_slow.png" image2="but_delay_slow_on.png" x="690" y="460"/>
 
 </portabletaperecorder>

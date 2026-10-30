@@ -31,7 +31,7 @@
 HWND mainWnd;
 HINSTANCE mainInstance;
 
-#define RECORDER_VERSION_STRING "Version v.0.9.1"
+#define RECORDER_VERSION_STRING "Version v.0.9.2"
 
 const char* diskName = "PortableTapeRecorder";
 const char* diskDesc = "Portable Tape Recorder";
@@ -497,21 +497,6 @@ void AppDrawText(const char* str, float l, float t, float r, float b, unsigned c
 	DrawText(font, l, t, r, b, clr, str);
 }
 
-void DrawStartupScreen()
-{
-	d3dd->Clear(0,0, D3DCLEAR_TARGET|D3DCLEAR_ZBUFFER, 0xFF000000, 0, 0);
-	d3dd->BeginScene();
-	
-	DrawText(font, 0, 0, windowWidth, windowHeight, D3DCOLOR_RGBA(255, 255, 255, 96), "Loading... please wait");
-
-	d3dd->EndScene();
-	if(d3dd->Present(0, 0, 0, 0) == D3DERR_DEVICELOST ) {
-	#ifndef _DEBUG
-		PostQuitMessage(0);
-	#endif
-	}
-}
-
 
 void SetBlendNormal()
 {
@@ -548,7 +533,8 @@ void ResetColor()
 	SetColor(255, 255, 255, 255);
 }
 
-Picture pictures[256];
+#define MAXPICTURES 384
+Picture pictures[MAXPICTURES];
 int picturesNumber = 1;
 
 int LoadPicture(const char* image)
@@ -655,6 +641,67 @@ void DrawPicture(int n, float i, float j, float ii = 0, float ij = 0, int ofx=0,
   d3dd->DrawIndexedPrimitiveUP(D3DPT_TRIANGLELIST, 0, 4, 2, idx, D3DFMT_INDEX16, &v[0], sizeof(vtx_t));
 }
 
+std::vector<vtx_t> mesh; 
+// I DO PREFER STATIC RESERVATIONS, BUT WINDOWS LOVES DYNAMIC MEMORY MORE SOMETIMES
+
+void StartMesh()
+{
+	mesh.reserve(16384);
+	mesh.clear();
+}
+
+void AddRectToMesh(float i, float j, float ii, float ij)
+{
+	vtx_t v[6];
+
+	v[0].t0 = 0.0f;//+0.5f/pics[n].wx;
+	v[0].t1 = 0.0f;//+0.5f/pics[n].wy;
+	v[0].x = (float)i - 0.5f;
+	v[0].y = (float)j - 0.5f;
+	v[0].z = 0;
+	v[0].w = 1;
+
+	v[1].t0 = 1.0f; // +0.5f/pics[n].wx;//ofx+ii;
+	v[1].t1 = 0.0f;// +0.5f/pics[n].wy;//ofy;
+	v[1].x = (float)i + (float)ii - 0.5f;
+	v[1].y = (float)j - 0.5f;
+	v[1].z = 0;
+	v[1].w = 1;
+
+
+	v[2].t0 = 0.0f;//+0.5f/pics[n].wx;//ofx;
+	v[2].t1 = 1.0f;//+0.5f/pics[n].wy;//ofy+ij;
+	v[2].x = (float)i - 0.5f;
+	v[2].y = (float)j + (float)ij - 0.5f;
+	v[2].z = 0;
+	v[2].w = 1;
+
+	v[3] = v[1];
+
+	v[4] = v[2];
+
+	v[5].t0 = 1.0f;//+0.5f/pics[n].wx;//ofx+ii;
+	v[5].t1 = 1.0f;//+0.5f/pics[n].wy;//ofy+ij;
+	v[5].x = (float)i + (float)ii - 0.5f;
+	v[5].y = (float)j + (float)ij - 0.5f;
+	v[5].z = 0;
+	v[5].w = 1;
+
+	mesh.push_back(v[0]);
+	mesh.push_back(v[1]);
+	mesh.push_back(v[2]);
+	mesh.push_back(v[3]);
+	mesh.push_back(v[4]);
+	mesh.push_back(v[5]);
+}
+
+void DrawMesh(int pic)
+{
+	SetPicture(pic);
+
+	d3dd->DrawPrimitiveUP(D3DPT_TRIANGLELIST, mesh.size() / 3, &mesh[0], sizeof(vtx_t));
+}
+
 // wrapper
 int AppLoadPicture(const char* filename)
 {
@@ -667,7 +714,32 @@ void AppDrawPicture(int picn, float x, float y, float w, float h)
 
 bool noButtonIsOver = true;
 
-int DrawButton(int butPictures[2], int x, int y, bool clickOrDown = true, bool forceOver = false)
+struct click_t
+{
+	int picture;
+	bool cansendclick;
+};
+
+#define MAXCLICKS 8
+click_t clicks[MAXCLICKS] = { 0 };
+int clicks_number = 0;
+bool cansendclick = false;
+
+struct fireworks_t
+{
+	bool clicked;
+	int picture;
+	int x;
+	int y;
+	__int64 clicktime;
+	bool cansendclick;
+};
+
+#define MAXFIREWORKS (32)
+fireworks_t clickfireworks[MAXFIREWORKS] = { 0 };
+int clickfireworks_number = 0;
+
+int DrawButton(int butPictures[2], int x, int y, bool clickOrDown = true, bool forceOver = false, bool canclick = true)
 {
 	int isOver = 0;
 	int result = 0;
@@ -676,12 +748,57 @@ int DrawButton(int butPictures[2], int x, int y, bool clickOrDown = true, bool f
 	{
 		isOver = 1;
 
-		if ( clickOrDown ? MouseClick() : MouseL() )
+		if ( clickOrDown )
 		{
-			result = 1;
+			if (MouseClick() && canclick)
+			{
+				if (clickOrDown)
+				{
+					fireworks_t fw;
+					fw.clicked = true;
+					fw.picture = butPictures[0];
+					fw.x = x;
+					fw.y = y;
+					fw.clicktime = timeTicks;
+					if (clickfireworks_number < MAXFIREWORKS)
+						clickfireworks[clickfireworks_number++] = fw;
+
+					//result = 1;
+					click_t clk;
+					clk.picture = fw.picture;
+					if (clicks_number < MAXCLICKS)
+						clicks[clicks_number++] = clk;
+
+					cansendclick = false;
+
+				}
+			}
+		}
+		else
+		{
+			if (MouseL())
+			{
+				result = 1;
+				isOver = 0;
+			}
 		}
 
 		noButtonIsOver = false;
+	}
+
+	// any gfx's any fireworks but only one mouseclick		
+
+	if (cansendclick)
+	{
+		for (int i = 0; i < clicks_number; ++i)
+		{
+			if (clicks[i].picture == butPictures[0])
+			{
+				result = 1;
+				clicks_number = 0;
+				cansendclick = false;
+			}
+		}
 	}
 
 	if (forceOver)
@@ -696,6 +813,40 @@ int DrawButton(int butPictures[2], int x, int y, bool clickOrDown = true, bool f
 	DrawPicture( butPictures[isOver], x, y);
 
 	return result;
+}
+
+void DrawFireworks()
+{
+	bool nofireworks = true;
+	for (int i = 0; i < clickfireworks_number; ++i)
+	{
+		fireworks_t& fw = clickfireworks[i];
+		if (fw.clicked)
+		{
+			__int64 tdiff = timeTicks - fw.clicktime;
+
+			if (tdiff < 150)
+			{
+				float alpha = (1.0f - (float)tdiff / 150.0f) * 255.0f;
+				SetColor(255, 255, 255, alpha);
+				nofireworks = false;
+				DrawPicture(fw.picture, fw.x, fw.y);
+			}
+			else
+			{
+				fw.clicked = false;
+			}
+		}
+	}
+	if (nofireworks)
+	{
+		cansendclick = true;
+		clickfireworks_number = 0;
+	}
+	else
+	{
+		cansendclick = false;
+	}
 }
 
 bool DrawChecker(int* checkerpics, int x, int y, bool state)
@@ -714,6 +865,28 @@ bool DrawChecker(int* checkerpics, int x, int y, bool state)
 
 	return result;
 }
+
+/////////////////////////////
+
+int loading;
+
+void DrawStartupScreen()
+{
+	d3dd->Clear(0, 0, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, 0xFF000000, 0, 0);
+	d3dd->BeginScene();
+
+	DrawPicture(loading, windowWidth / 2 - pictures[loading].width / 2, windowHeight / 2 - pictures[loading].height / 2);
+
+	//DrawText(font, 0, 0, windowWidth, windowHeight, D3DCOLOR_RGBA(255, 255, 255, 96), "Loading... please wait");
+
+	d3dd->EndScene();
+	if (d3dd->Present(0, 0, 0, 0) == D3DERR_DEVICELOST) {
+#ifndef _DEBUG
+		PostQuitMessage(0);
+#endif
+	}
+}
+
 
 /////////////////////////////
 
@@ -1369,6 +1542,7 @@ int px1;
 // 
 
 int spFrame = 1;
+int new_spFrame = 1;
 int normalize_mode = 1;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1415,6 +1589,72 @@ void BuildStatisticsSpecturms()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+__int64 frameChangeTime = 0;
+__int64 pauseTime = 0;
+const int frameDelay = 75;
+const int pauseDelay = 10;
+__int64 absoluteFrameChangeTime = 0;
+
+void ChangeAppFrame(int newFrame)
+{
+	if (newFrame != spFrame && newFrame != new_spFrame)
+	{
+		if (IsRecorderWriting())
+			StopRec(baserec);
+		if (IsRecorderPlaying())
+			StopPlayingRec();
+		if (IsRecorderRemastering())
+			StopRemaster();
+
+		new_spFrame = newFrame;
+		frameChangeTime = timeTicks;
+		absoluteFrameChangeTime = timeTicks;
+	}
+}
+
+void DrawFrameChange()
+{
+	int tdiff = timeTicks - frameChangeTime;
+	if (tdiff < frameDelay)
+	{
+
+		float fdiff = 0.0f;
+
+		fdiff = (float)(tdiff) / (float)(frameDelay);
+
+		if (spFrame == new_spFrame)
+		{
+			fdiff = 1.0f - fdiff;
+		}
+		SetColor(32, 32, 32, fdiff * 255.0f);
+		DrawPicture(px1, 0, 0, windowWidth, windowHeight);
+	}
+	else
+	{
+		if (spFrame != new_spFrame)
+		{
+			spFrame = new_spFrame;
+			frameChangeTime = timeTicks;
+			pauseTime = timeTicks;
+		}
+	}
+	if (timeTicks - pauseTime < pauseDelay)
+	{
+		SetColor(32, 32, 32, 255);
+		DrawPicture(px1, 0, 0, windowWidth, windowHeight);
+	}
+	// confirm we're not fireworks
+	if (timeTicks - absoluteFrameChangeTime >= 600)
+	{
+		absoluteFrameChangeTime = 0;
+		spFrame = new_spFrame;
+		pauseTime = 0;
+		frameChangeTime = 0;
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void DrawMainScreen()
 {
 	if (DrawButton(remastermode ? remaster : remasterPlaying, remasterX, remasterY))
@@ -1456,7 +1696,7 @@ void DrawMainScreen()
 		SetAlpha(128);
 	}
 
-	if (DrawButton(recOrStop ? rec : stop, recX, recY) && canclick)
+	if (DrawButton(recOrStop ? rec : stop, recX, recY, true, false, canclick))
 	{
 		if (recOrStop)
 		{
@@ -1481,7 +1721,7 @@ void DrawMainScreen()
 		canclick = false;
 	}
 
-	if (DrawButton(playOrStop ? play : stopplay, playX, playY) && canclick)
+	if (DrawButton(playOrStop ? play : stopplay, playX, playY, true, false, canclick))
 	{
 		if (playOrStop)
 		{
@@ -1509,7 +1749,7 @@ void DrawMainScreen()
 	if (!IsRecordNormalized())
 		normalize_mode = 1;
 
-	if (DrawButton(normalize_mode ? normalize : limit, normalizeX, normalizeY) && canclick)
+	if (DrawButton(normalize_mode ? normalize : limit, normalizeX, normalizeY, true, false,canclick))
 	{
 		if (normalize_mode == 1)
 			NormalizeRec(baserec);
@@ -1518,7 +1758,7 @@ void DrawMainScreen()
 		normalize_mode = !normalize_mode;
 	}
 
-	if (DrawButton(addriaa, addriaaX, addriaaY) && canclick)
+	if (DrawButton(addriaa, addriaaX, addriaaY, true, false, canclick))
 	{
 		AddRIAAToRec(baserec);
 	}
@@ -1533,7 +1773,7 @@ void DrawMainScreen()
 		canclick = false;
 	}
 
-	if (DrawButton(undofx, undoFXX, undoFXY) && canclick)
+	if (DrawButton(undofx, undoFXX, undoFXY, true, false, canclick))
 	{
 		UndoFXFromRec();
 		normalize_mode = 1;
@@ -1553,7 +1793,7 @@ void DrawMainScreen()
 
 	if (RecorderIsTrackEmpty())
 	{
-		if (DrawButton(importbut, exportX, exportY) && canclick)
+		if (DrawButton(importbut, exportX, exportY, true, false, canclick))
 		{
 			std::string openfile;
 			if (HelperGetOpenFileName(openfile))
@@ -1564,7 +1804,7 @@ void DrawMainScreen()
 	}
 	else
 	{
-		if (DrawButton(exportwavormp3 ? exportbut : exportmp3but, exportX, exportY) && canclick)
+		if (DrawButton(exportwavormp3 ? exportbut : exportmp3but, exportX, exportY, true, false, canclick))
 		{
 			SaveRec(exportwavormp3);
 			exportwavormp3 = !exportwavormp3;
@@ -1575,14 +1815,8 @@ void DrawMainScreen()
 
 	if (DrawButton(settingsimg, settingsX, settingsY))
 	{
-		if (IsRecorderWriting())
-			StopRec(baserec);
-		if (IsRecorderPlaying())
-			StopPlayingRec();
-		if (IsRecorderRemastering())
-			StopRemaster();
-
-		spFrame = 2;
+		//spFrame = 2;
+		ChangeAppFrame(2);
 	}
 
 	if (DrawButton(quit, quitX, quitY))
@@ -1598,7 +1832,8 @@ void DrawMainScreen()
 
 	if (DrawButton(infobut, infobutX, infobutY))
 	{
-		spFrame = 3;
+		//spFrame = 3;
+		ChangeAppFrame(3);
 		//ShowWindow(mainWnd, SW_MINIMIZE );
 	}
 
@@ -1606,7 +1841,7 @@ void DrawMainScreen()
 	{
 		BuildStatisticsSpecturms();
 
-		spFrame = 4;
+		ChangeAppFrame(4);//spFrame = 4;
 	}
 
 
@@ -1927,6 +2162,7 @@ void DrawMainScreen()
 		DrawPicture(px1, trackX - 11, trackY - 5, 10, 10);
 		DrawPicture(px1, trackX + trackWidth + 2, trackY - 5, 10, 10);
 
+		StartMesh();
 
 		for (int i = 0; i < trackWidth - 1; ++i)
 		{
@@ -1941,13 +2177,17 @@ void DrawMainScreen()
 			//float sampledb = 100 + VolumeToDb (vplus);
 			float sampledb = vplus * trackHeight;
 
-			DrawPicture(px1, trackX + i, trackY - sampledb, 1, sampledb);
+			//DrawPicture(px1, trackX + i, trackY - sampledb, 1, sampledb);
+			AddRectToMesh(trackX + i, trackY - sampledb, 1, sampledb);
 
 			sampledb = fabs(vminus) * trackHeight;
 			//sampledb = 100 + VolumeToDb(abs(vminus));
 
-			DrawPicture(px1, trackX + i, trackY, 1, sampledb);
+			//DrawPicture(px1, trackX + i, trackY, 1, sampledb);
+			AddRectToMesh(trackX + i, trackY, 1, sampledb);
 		}
+
+		DrawMesh(px1);
 
 		///////////////////////////////////////////////////////////
 		//
@@ -2007,7 +2247,8 @@ void DrawMainScreen()
 
 		if(KeyTrig(DIK_P))
 		{
-			spFrame = 2;
+			//spFrame = 2;
+			ChangeAppFrame(2);
 		}
 
 		ResetColor();
@@ -2033,7 +2274,7 @@ void DrawMainScreen()
 			SetAlpha(128);
 
 		static bool rewriteOnOrOff = true;
-		if (DrawButton(rewriteOnOrOff ? onimg : offimg, onoffX, onoffY) && canclick)
+		if (DrawButton(rewriteOnOrOff ? onimg : offimg, onoffX, onoffY, true, false, canclick))
 		{
 			rewriteOnOrOff = !rewriteOnOrOff;
 			RecorderSetRewriteMode(rewriteOnOrOff);
@@ -2733,7 +2974,8 @@ void DrawSettingsScreen()
 			//BASS_ChannelStop(recrehash);
 		//}
 		//RecorderDeviceRetrieve();
-		spFrame = 1;
+		//spFrame = 1;
+		ChangeAppFrame(1);
 	}
 }
 
@@ -2744,9 +2986,10 @@ void DrawInfoScreen()
 {
 	DrawPicture(info, 0, 0);
 
-	if(KeyTrig(DIK_ESCAPE) || DrawButton(quitinfo, quitinfoX, quitinfoY))
+	if(DrawButton(quitinfo, quitinfoX, quitinfoY) || KeyTrig(DIK_ESCAPE))
 	{
-		spFrame = 1;
+		//spFrame = 1;
+		ChangeAppFrame(1);
 	}
 }
 
@@ -2969,7 +3212,8 @@ void DrawStatisticsScreen()
 
 	if (KeyTrig(DIK_ESCAPE))
 	{
-		spFrame = 1;
+		//spFrame = 1;
+		ChangeAppFrame(1);
 	}
 }
 ////////////////////////////////////////////////////////////////////////////////
@@ -3022,6 +3266,7 @@ void RestoreCurrentSettings()
 
 int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 {
+	DWORD loadingtime = timeGetTime();
 	mainInstance = hInst;
 
 	InitFolders();
@@ -3121,6 +3366,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 		MessageBoxA(mainWnd, "D3D failed", "Sorry!", MB_ICONERROR | MB_OK);
 		return -1;
 	}
+
+	loading = LoadPicture("images/loading.png");
 
 	DrawStartupScreen();
 
@@ -3955,6 +4202,12 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 
 	///////////////////////////////////////////////////////////////
  
+	loadingtime = timeGetTime() - loadingtime;
+
+	WriteToLog("Loading time: %i ms", loadingtime);
+
+	///////////////////////////////////////////////////////////////
+	
 	MSG msg = { 0 };
 
 	while(msg.message != WM_QUIT) 
@@ -4019,7 +4272,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 			}
 			if (KeyTrig(DIK_F1))
 			{
-				spFrame = 3;
+				//spFrame = 3;
+				ChangeAppFrame(3);
 			}
 		
 			/////////////////////////////////////////////////////////////
@@ -4111,6 +4365,10 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 
 				DrawText(font, 0, 60, 200, 80, clr, (trollorjoush > 0) ? "Stab: Troll" : ((trollorjoush < 0) ? "Stab: Joush" : "Stab: Knight"));
 			}
+
+			DrawFireworks();
+
+			DrawFrameChange();
 
 			SetBlendNormal();
 			ResetColor();
