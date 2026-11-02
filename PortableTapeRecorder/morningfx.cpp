@@ -5,6 +5,7 @@
 #include <Windows.h>
 #include "main.h"
 #include "recorder.h"
+#include "log.h"
 #include "xml/tinyxml.H"
 #include <vector>
 
@@ -33,7 +34,11 @@ void LoadMFXs(const char* xmlfile)
 		while (temp)
 		{
 
+#ifdef REC64BIT
+			const char* dllname = temp->Attribute("dll64");
+#else
 			const char* dllname = temp->Attribute("dll");
+#endif 
 
 			if (dllname)
 			{
@@ -52,6 +57,14 @@ void LoadMFXs(const char* xmlfile)
 							mfx[mfxNumber++] = fx;
 						}
 					}
+					else
+					{
+						WriteToLog("GetMyMFX function wasn't found in the plugin: %s", dllname);
+					}
+				}
+				else
+				{
+					WriteToLog("Failed to load MFX plugin: %s", dllname);
 				}
 				loadedlibs.push_back(hlib);
 			}

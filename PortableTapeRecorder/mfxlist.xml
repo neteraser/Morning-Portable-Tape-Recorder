@@ -1,5 +1,6 @@
 <?xml version="1.0" ?>
 <morningfxlist>
-	<mfx dll="plugins/StandardEqMFX.dll"/>
-	<mfx dll="plugins/SignalGenMFX.dll"/>
+	<mfx dll="plugins/StandardEqMFX.dll" dll64="plugins/StandardEqMFX64.dll"/>
+	<mfx dll="plugins/SignalGenMFX.dll" dll64="plugins/SignalGenMFX64.dll"/>
+	<mfx dll="plugins/ParametricEQMFX.dll" dll64="plugins/ParametricEQMFX64.dll"/>
 </morningfxlist>

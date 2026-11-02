@@ -1,0 +1,14 @@
+{
+    "version": 1,
+    "revision": 0,
+    "rules": [
+        {
+            "primary-output": "Release\\kiss_fftr.obj",
+            "outputs": [
+                "Release\\kiss_fftr.h.obj.dt.module.json",
+                "Release\\kiss_fftr.h.obj.dt.d.json"
+            ],
+            "requires": []
+        }
+    ]
+}

@@ -2,6 +2,10 @@
 
 #define RECUSEBASSLIB
 
+#ifdef REC64BIT
+#undef RECUSEBASSLIB
+#endif
+
 #ifdef RECUSEBASSLIB
 #include "bass/bass.h"
 #endif

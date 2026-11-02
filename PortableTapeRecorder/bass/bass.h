@@ -661,7 +661,7 @@ typedef struct
 	char URL[1024];					// uniform resource locator
 #if defined(__GNUC__) && __GNUC__<3
 	char TagText[0];				// free form text for scripts or tags
-#elif 1 // change to 0 if compiler fails the following line
+#elif 0 // change to 0 if compiler fails the following line
 	char TagText[];					// free form text for scripts or tags
 #else
 	char TagText[1];				// free form text for scripts or tags

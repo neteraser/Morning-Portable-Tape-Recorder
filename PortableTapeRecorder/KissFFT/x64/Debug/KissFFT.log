@@ -1,0 +1,10 @@
+﻿  pch.cpp
+  kfc.c
+  kiss_fft.c
+D:\Projects\PortableTapeRecorder\PortableTapeRecorder\KissFFT\kiss_fft.c(224,34): warning C4267: +=: преобразование из "size_t" в "int"; возможна потеря данных
+  kiss_fftnd.c
+  kiss_fftndr.c
+  kiss_fftr.c
+  Создание кода...
+  KissFFT.cpp
+  KissFFT.vcxproj -> D:\Projects\PortableTapeRecorder\PortableTapeRecorder\lib\KissFFT64d.lib

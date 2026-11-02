@@ -31,7 +31,11 @@
 HWND mainWnd;
 HINSTANCE mainInstance;
 
-#define RECORDER_VERSION_STRING "Version v.0.9.2"
+#ifdef REC64BIT
+#define RECORDER_VERSION_STRING "v.0.9.3 64 bit"
+#else
+#define RECORDER_VERSION_STRING "v.0.9.3 32 bit"
+#endif
 
 const char* diskName = "PortableTapeRecorder";
 const char* diskDesc = "Portable Tape Recorder";
@@ -2208,7 +2212,7 @@ void DrawMainScreen()
 
 		//////////////////////////////////////
 
-		DrawText(font, 610, 50, 710, 75, D3DCOLOR_RGBA(255, 255, 255, 128), RECORDER_VERSION_STRING);
+		DrawText(font, 600, 50, 720, 75, D3DCOLOR_RGBA(255, 255, 255, 128), RECORDER_VERSION_STRING);
 
 		////////////////////////////////////
 		float rms = ComputeRMS(baserec, baserec.unipos - 256, baserec.unipos);
@@ -2929,11 +2933,15 @@ void DrawSettingsScreen()
 
 	if (DrawChecker(basslib, bassX, bassY, librarynumber == 1))
 	{
+#ifdef REC64BIT
+		MessageBoxA(mainWnd, "BASS Library is switched off in the 64bit version.", "Sorry!", MB_OK | MB_ICONINFORMATION);
+#else
 		RefreshDeviceChoice();
 		librarynumber = 1;
 		SwitchAudioLibrary(librarynumber, mainWnd, RECBUFFERDELAYMS);
 		cursettings.audiolibrary = librarynumber;
 		ResetSavedDevices();
+#endif
 	}
 
 	if (DrawChecker(portylib, portyX, portyY, librarynumber == 0))
@@ -3277,6 +3285,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 
 	InitLog("errorlog.txt");
 	WriteToLog("Portable Tape Recorder, log started...");
+
+	//WriteToLog("Size of short: %i", sizeof(short));
 
 	TiXmlDocument doc;
 
@@ -4341,7 +4351,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 
 			if (drawdebugscreen)
 			{
-				SetColor(55, 55, 55, 255);
+				SetColor(150, 150, 150, 255);
 
 				DrawPicture(px1, 0, 0, 200, 85);
 

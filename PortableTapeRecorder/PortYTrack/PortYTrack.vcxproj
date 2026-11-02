@@ -71,6 +71,15 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <TargetName>$(ProjectName)64d</TargetName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <TargetName>$(ProjectName)64</TargetName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <TargetName>$(ProjectName)d</TargetName>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
@@ -85,8 +94,8 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
-      <OutputFile>$(SolutionDir)\PortableTapeRecorder\$(TargetName)d.dll</OutputFile>
-      <ImportLibrary>$(SolutionDir)\PortableTapeRecorder\lib\$(TargetName)d.lib</ImportLibrary>
+      <OutputFile>$(SolutionDir)\PortableTapeRecorder\$(TargetName).dll</OutputFile>
+      <ImportLibrary>$(SolutionDir)\PortableTapeRecorder\lib\$(TargetName).lib</ImportLibrary>
       <AdditionalOptions>dsound.lib dxguid.lib %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <Manifest>
@@ -126,13 +135,18 @@
       <PreprocessorDefinitions>_DEBUG;PORTYTRACK_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
+      <AdditionalLibraryDirectories>$(DXSDK_DIR)\Lib\x64\;</AdditionalLibraryDirectories>
+      <AdditionalOptions>dsound.lib dxguid.lib %(AdditionalOptions)</AdditionalOptions>
+      <OutputFile>$(SolutionDir)\PortableTapeRecorder\$(TargetName).dll</OutputFile>
+      <ImportLibrary>$(SolutionDir)\PortableTapeRecorder\lib\$(TargetName).lib</ImportLibrary>
     </Link>
     <Manifest>
       <EnableSegmentHeap>true</EnableSegmentHeap>
@@ -147,13 +161,19 @@
       <PreprocessorDefinitions>NDEBUG;PORTYTRACK_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <AdditionalIncludeDirectories>$(SolutionDir)$(SolutionName)/;</AdditionalIncludeDirectories>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
+      <AdditionalOptions>dsound.lib dxguid.lib %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalLibraryDirectories>$(DXSDK_DIR)\Lib\x64\;</AdditionalLibraryDirectories>
+      <OutputFile>$(SolutionDir)\PortableTapeRecorder\$(TargetName).dll</OutputFile>
+      <ImportLibrary>$(SolutionDir)\PortableTapeRecorder\lib\$(TargetName).lib</ImportLibrary>
     </Link>
     <Manifest>
       <EnableSegmentHeap>true</EnableSegmentHeap>

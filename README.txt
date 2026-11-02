@@ -93,3 +93,13 @@ v.0.9.2
 Neater graphics, some GFXs (fireworks), bugfixes, performance fixes.
 
 We're preparing the release.
+
+v.0.9.3
+
+Parametric Graphic Equalizer MFX plugin in included started from this version. Also we now have both 32bit and 64bit builds of the app. You might try our 64bit recorder and like it better or worse.
+
+x64 build uses the latest version of the Intel MKL (Math Kernel Library) to do FFT transforms for the EQ plugin.
+
+x86 build uses KissFFT library for the EQ plugin.
+
+Bass Library is switched off in the 64bit/x64 build.

@@ -25,14 +25,14 @@ __inline double AnalogToDigital(double volume)
 	return digital / 31500.0;
 }
 
-float adcd00 = 56.0 / (220.0 + 56.0);
-float adcd01 = 47.0 / (470.0 + 47.0);
+float adcd00 = 56.0f / (220.0f + 56.0f);
+float adcd01 = 47.0f / (470.0f + 47.0f);
 
-float adcd10 = 470.0 / (470.0 + 470.0);
-float adcd11 = 330.0 / (1000.0 + 330.0);
+float adcd10 = 470.0f / (470.0f + 470.0f);
+float adcd11 = 330.0f / (1000.0f + 330.0f);
 
-float adcd20 = 16.0 / (68.0 + 16.0);
-float adcd21 = 22.0 / (68.0 + 22.0);
+float adcd20 = 16.0f / (68.0f + 16.0f);
+float adcd21 = 22.0f / (68.0f + 22.0f);
 
 #define DIVGREATER( a, b ) ( (a) < (b) ? (a) / (b) : (b) / (a) )
 
@@ -40,12 +40,12 @@ float adcdmult[3] = { DIVGREATER(adcd00, adcd01), DIVGREATER(adcd10, adcd11), DI
 
 float HiddenProcessSampleByColor_fn(float in, float mix, int clr)
 {
-	float vcolored = in;
+	double vcolored = in;
 	vcolored = DigitalToAnalog(vcolored);
 	vcolored *= adcdmult[clr];
 	vcolored = AnalogToDigital(vcolored);
 
-	float vmix = in * (1.0f - mix * 0.7f) + vcolored * mix * 0.7f;
+	float vmix = in * (1.0f - mix * 0.7f) + (float)vcolored * mix * 0.7f;
 
 	return vmix;
 }

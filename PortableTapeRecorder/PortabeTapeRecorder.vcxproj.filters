@@ -58,7 +58,7 @@
     <ClInclude Include="morningfx.h" />
   </ItemGroup>
   <ItemGroup>
-    <Image Include="icon1.ico" />
+    <Image Include="icon2.ico" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="TapeRecorder.rc" />
