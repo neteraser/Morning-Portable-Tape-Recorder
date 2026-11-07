@@ -3,4 +3,5 @@
 	<mfx dll="plugins/StandardEqMFX.dll" dll64="plugins/StandardEqMFX64.dll"/>
 	<mfx dll="plugins/SignalGenMFX.dll" dll64="plugins/SignalGenMFX64.dll"/>
 	<mfx dll="plugins/ParametricEQMFX.dll" dll64="plugins/ParametricEQMFX64.dll"/>
+	<mfx dll="plugins/DigitalCompressorMFX.dll" dll64="plugins/DigitalCompressorMFX64.dll"/>
 </morningfxlist>

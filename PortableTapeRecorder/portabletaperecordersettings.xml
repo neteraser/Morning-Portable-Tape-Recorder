@@ -27,11 +27,12 @@
 	<button id="undofx" image="but_undofx.png" onMouseOver="but_undofx_over.png" x="375" y="495"/>
 	<button id="settings" image="but_settings.png" onMouseOver="but_settings_over.png" x="500" y="25"/>
 	<button id="apply" image="but_apply.png" onMouseOver="but_apply_over.png" x="680" y="18"/>
+	<button id="clean" image="but_clean.png" onMouseOver="but_clean_over.png" x="490" y="18"/>
 
-	<button id="reverb" image="but_reverb.png" onMouseOver="but_reverb_over.png" x="720" y="460"/>
-	<button id="superfi" image="but_superfi.png" onMouseOver="but_superfi_over.png" x="720" y="480"/>
-	<button id="master" image="but_render.png" onMouseOver="but_render_over.png" x="720" y="500"/>
-	<button id="fftnorm" image="but_fftnorm.png" onMouseOver="but_fftnorm_over.png" x="720" y="520"/>
+	<button id="fftnorm" image="but_fftnorm.png" onMouseOver="but_fftnorm_over.png" x="720" y="460"/>
+	<button id="reverb" image="but_reverb.png" onMouseOver="but_reverb_over.png" x="720" y="480"/>
+	<button id="superfi" image="but_superfi.png" onMouseOver="but_superfi_over.png" x="720" y="500"/>
+	<button id="master" image="but_render.png" onMouseOver="but_render_over.png" x="720" y="520"/>
 
 	<button id="savescreen" image="but_savescreen.png" onMouseOver="but_savescreen_over.png" x="420" y="495"/>
 

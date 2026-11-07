@@ -72,6 +72,15 @@ extern Record streamrec;
 	void* user);
 	*/
 
+__inline short CheckInt16(int in)
+{
+	if (in > 32767)
+		in = 32767;
+	if (in < -32768)
+		in = -32768;
+	return (short)in; 
+}
+
 __inline float Int16ToFloat(short in)
 {
 	float out = 0;
@@ -91,24 +100,28 @@ __inline short FloatToInt16(float in)
 	if (in < -1.0f)
 		in = -1.0f;
 
-	short out = 0;
+	int out = 0;
 	if (in > 0.0)
 	{
 		float v = in * 32767.0f;
 		// precision bit -- very important;
-		out = (short)truncf(v);
-		if (v - (float)out > 0.6f)
+		out = (int)truncf(v);
+		if (v - (float)out > 0.66f)
 			out += 1;
 	}
 	else
 	if(in < 0.0f)
 	{
 		float v = in * 32768.0;
-		out = (short)truncf(v);
-		if ( fabs(v - (float)out) > 0.6f)
+		out = (int)truncf(v);
+		if ( fabs(v - (float)out) > 0.66f)
 			out -= 1;
 	}
-	return out;
+	if (out > 32767)
+		out = 32767;
+	if (out < -32768)
+		out = -32768;
+	return (short)out;
 }
 
 __inline short PackInt16ForWriting(short in)
@@ -635,3 +648,7 @@ void InvertRec();
 void RecorderSetMFX(MorningFX* fx);
 
 void RecorderApplyMFX();
+
+void RecAddToUndoList();
+
+void RecCleanTapes(int passes = 2);

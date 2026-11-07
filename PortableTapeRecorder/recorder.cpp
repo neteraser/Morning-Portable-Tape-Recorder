@@ -49,6 +49,15 @@ int regionBegin = 0, regionEnd = 0;
 
 bool isRegionSet = false;
 
+#include <stack>
+
+std::stack<int> undoindex;
+
+Record prevrec[(RECMAXUNDOLEVEL + 2)];
+
+int undolevel = 0;
+
+
 void InitFolders()
 {
 	gfilename.reserve(1024);
@@ -135,6 +144,8 @@ float recFadeInTime = 2.5f;
 
 static int recCLRFX = 0;
 
+static const float myHeadRoomSafetyFlag = 1.0f - 3.14f / 32.0f;
+
 __inline float FixDeviceBit(float in)
 {
 	float out = -in;
@@ -143,6 +154,7 @@ __inline float FixDeviceBit(float in)
 	{
 		out *= 32768.0f / 32767.0f;
 	}
+	out *= myHeadRoomSafetyFlag;
 	BEGINHIDDENCODE(HiddenProcessSampleByColor)
 		out = HiddenProcessSampleByColor(out, recQFX, recCLRFX);
 	ENDHIDDENCODE
@@ -502,9 +514,9 @@ void PostProcessRec(Record& rec, bool dofadeout) {
 		float fsample = rec.recbuf[i];
 		float ffilter = 0;
 		ffilter = ProcessRIAAFilter(baseriaafilter, fsample);
-		ffilter *= 0.0166f * (recQFX + 0.5f);
+		ffilter *= 0.166f * (recQFX + 0.5f);
 		ffilter *= remasterq;
-		fsample = (fsample + ffilter) * 0.5f;
+		fsample = (fsample + ffilter) * 0.66f;
 		
 		// fadeout
 		if (dofadeout)
@@ -554,25 +566,9 @@ void StartRec(Record& rec) {
 	recOrPlay = -1;
 }
 
-
-Record prevrec[(RECMAXUNDOLEVEL + 4)];
-
-int undolevel = 0;
-
-void UndoFXFromRec()
-{
-	if (undolevel <= 0)
-		return;
-
-	baserec = prevrec[--undolevel];
-}
-
 void AddRIAAToRec(Record& rec)
 {
-	if (undolevel < RECMAXUNDOLEVEL)
-		prevrec[undolevel++] = baserec;
-	else
-		return;
+	RecAddToUndoList();
 
 	PrepareRIAAFilter(baseriaafilter, 68, 200, 2000); //  contemporary: 15, 25, 250 check this out, the central frequency must be 6-8khz
 	for (int i = 0; i < rec.bufpos; ++i)
@@ -589,10 +585,7 @@ void AddRIAAToRec(Record& rec)
 
 void MasterRec(Record& rec)
 {
-	if (undolevel < RECMAXUNDOLEVEL)
-		prevrec[undolevel++] = baserec;
-	else
-		return;
+	RecAddToUndoList();
 
 	PrepareInverseRIAAFilter(baseinvriaafilter, 15, 25, 150);// check this out, the central frequency must be 6 - 8khz
 	for (int i = 0; i < rec.bufpos; ++i)
@@ -655,10 +648,7 @@ float RecCalculatePeak(Record& rec, int begin, int end)
 
 void NormalizeRec(Record& rec)
 {
-	if (undolevel < RECMAXUNDOLEVEL)
-		prevrec[undolevel++] = baserec;
-	else
-		return;
+	RecAddToUndoList();
 
 	float fmaxv = 0;
 	for (int i = 0; i < rec.bufpos; ++i)
@@ -682,10 +672,7 @@ void NormalizeRec(Record& rec)
 
 void LimitRec(Record& rec)
 {
-	if (undolevel < RECMAXUNDOLEVEL)
-		prevrec[undolevel++] = baserec;
-	else
-		return;
+	RecAddToUndoList();
 
 	for (int i = 0; i < rec.bufpos; ++i)
 	{
@@ -716,7 +703,7 @@ void LimitRec(Record& rec)
 
 void LiftRec()
 {
-	FILE* file = fopen(getProgramFileName("tape.bin"), "rb");
+	FILE* file = fopen(getProgramFileName("prev_tape.bin"), "rb");
 	if (!file)
 		return;
 	fseek(file, 0, SEEK_END);
@@ -740,13 +727,13 @@ void ReadRec()
 {
 	if (remastermode == 0)
 	{
-		baserec.tape = fopen(getProgramFileName("tape_remaster.bin"), "rb");
+		baserec.tape = fopen(getProgramFileName("prev_tape_remaster.bin"), "rb");
 		baserec.tapepolarized = 0;
 	}
 	else
 	{
-		baserec.tape = fopen(getProgramFileName("tape.bin"), "rb");
-		baserec.tapepolarized = fopen(getProgramFileName("tape_polarized.bin"), "rb");
+		baserec.tape = fopen(getProgramFileName("prev_tape.bin"), "rb");
+		baserec.tapepolarized = fopen(getProgramFileName("prev_tape_polarized.bin"), "rb");
 	}
 
 	if (baserec.tape == 0)
@@ -815,6 +802,23 @@ void StopRec(Record& rec)
 
 	fclose(rec.tape);
 	fclose(rec.tapepolarized);
+
+	remove(getProgramFileName("prev_tape.bin"));
+	remove(getProgramFileName("prev_tape_polarized.bin"));
+
+	std::string oldfn = getProgramFileName("tape.bin"), newfn = getProgramFileName("prev_tape.bin");
+
+	if (rename(oldfn.c_str(), newfn.c_str()) != 0)
+	{
+		WriteToLog("Error saving tape file.");
+	}
+	
+	oldfn = getProgramFileName("tape_polarized.bin"), newfn = getProgramFileName("prev_tape_polarized.bin");
+	
+	if (rename(oldfn.c_str(), newfn.c_str()) != 0)
+	{
+		WriteToLog("Error saving polarized tape file.");
+	}
 
 	gaudio->Stop();
 
@@ -1022,6 +1026,39 @@ void SaveRec(bool wavormp3)
 {
 	//_mkdir(getAppFileName("output/"));
 
+	// check the counter's existence
+	int checkcount = 0;
+	OFSTRUCT ofst;
+	if (OpenFile(getMusicFileName("output/recoutcounter.bin"), &ofst, OF_EXIST) == HFILE_ERROR)
+	{
+		// enumerate the present output records
+		HANDLE hfind;
+		WIN32_FIND_DATA fd;
+		std::string ff = getMusicFileName("output/RECOUT*.*");
+		hfind = FindFirstFile(ff.c_str(), &fd);
+		if (hfind != INVALID_HANDLE_VALUE)
+		{
+			checkcount = 1;
+			do
+			{
+				std::string path = fd.cFileName;
+				int check;
+				sscanf(path.c_str(), "RECOUT%d*", &check);
+				if (check > 10000)
+					check = 10000;
+				if (check > checkcount)
+					checkcount = check;
+
+			} while (FindNextFile(hfind, &fd) == TRUE);
+
+			FindClose(hfind);
+		}
+
+		WriteToLog("Found output till: %i", checkcount);
+	}
+
+	//
+
 	FILE* counterfile = fopen(getMusicFileName("output/recoutcounter.bin"), "a + b");
 	unsigned reccount = 0;
 
@@ -1031,6 +1068,16 @@ void SaveRec(bool wavormp3)
 	{
 		fread(&reccount, 4, 1, counterfile);
 		dontseek = false;
+
+		if (reccount > 10000)
+		{
+			//corrupted
+			reccount = checkcount;
+		}
+	}
+	else
+	{
+		reccount = checkcount;
 	}
 
 	if(wavormp3)
@@ -1544,10 +1591,7 @@ int remastermode = 1;
 
 void StartRemaster()
 {
-	if (undolevel < RECMAXUNDOLEVEL)
-		prevrec[undolevel++] = baserec;
-	else
-		return;
+	RecAddToUndoList();
 
 	WriteToLog("Remaster started..., timeticks: %i", timeGetTime());
 
@@ -1624,6 +1668,11 @@ void StopRemaster()
 	streamrec.breakplay = TRUE;
 
 	fclose(baserec.tape);
+
+	remove(getProgramFileName("prev_tape_remaster.bin"));
+
+	std::string oldfn = getProgramFileName("tape_remaster.bin"), newfn = getProgramFileName("prev_tape_remaster.bin");
+	rename(oldfn.c_str(), newfn.c_str());
 
 	gaudio->Stop();
 
@@ -1716,16 +1765,6 @@ bool RecorderDeviceRetrieve(int devNum, int recDevNum)
 	ZeroMemory(streamrec.safebuf_after, sizeof(streamrec.safebuf_after));
 
 	return gaudio->Retrieve(devNum, recDevNum);
-}
-
-bool RecorderCanUndo()
-{
-	return undolevel > 0;
-}
-
-bool RecorderCanDoFX()
-{
-	return undolevel < RECMAXUNDOLEVEL;
 }
 
 void RecorderSetLoop(bool loop)
@@ -1947,14 +1986,14 @@ void RecRerenderTape(const char* tapemapname)
 			{
 				for (int i = 0; i < baserec.bufpos; ++i)
 				{
-					sbuf[i] = PackInt16ForWriting(FloatToInt16(baserec.recbuf[i]) - 1);
+					sbuf[i] = PackInt16ForWriting(CheckInt16((int)FloatToInt16(baserec.recbuf[i]) - 1));
 				}
 
 				FlushViewOfFile(sbuf, mapsize);
 
 				for (int i = 0; i < baserec.bufpos; ++i)
 				{
-					baserec.recbuf[i] = Int16ToFloat(UnpackInt16ForReading(sbuf[i])+1);
+					baserec.recbuf[i] = Int16ToFloat(CheckInt16((int)UnpackInt16ForReading(sbuf[i])+1));
 				}
 
 				FlushViewOfFile(sbuf, mapsize);
@@ -1986,10 +2025,7 @@ void RecorderReRender()
 
 void RecorderAddReverb()
 {
-	if (undolevel < RECMAXUNDOLEVEL)
-		prevrec[undolevel++] = baserec;
-	else
-		return;
+	RecAddToUndoList();
 
 	ProcessReverb48khz(baserec.recbuf, baserec.bufpos, recQFX * 0.22f);
 }
@@ -2044,10 +2080,7 @@ void RecorderHighBoost(Record& rec)
 
 void RecorderSuperfi()
 {
-	if (undolevel < RECMAXUNDOLEVEL)
-		prevrec[undolevel++] = baserec;
-	else
-		return;
+	RecAddToUndoList();
 
 	RIAAFilter inverseriaa, riaa;
 	PrepareInverseRIAAFilter(inverseriaa, 68, 250, 2000);
@@ -2118,23 +2151,20 @@ void RecorderCutToRegion()
 	if (regionEnd - regionBegin == 0)
 		return;
 
-	if (undolevel < RECMAXUNDOLEVEL)
-		prevrec[undolevel] = baserec;
-	else
-		return;
+	RecAddToUndoList();
 
 	int samplelen = (regionEnd - regionBegin);
+
+	temprec = baserec;
 	
 	ZeroMemory(baserec.recbuf, RECBUFSTANDARDSIZE * sizeof(float));
-	CopyMemory(baserec.recbuf, prevrec[undolevel].recbuf + regionBegin, samplelen * sizeof(float));
+	CopyMemory(baserec.recbuf, temprec.recbuf + regionBegin, samplelen * sizeof(float));
 
 	streamrec.playpos = 0;
 	baserec.unipos = 0;
 	baserec.bufpos = samplelen;
 	
 	RecorderResetRegion();
-
-	undolevel += 1;
 }
 
 void RecorderCutOutRegion()
@@ -2145,22 +2175,19 @@ void RecorderCutOutRegion()
 	if (regionEnd - regionBegin == 0)
 		return;
 
-	if (undolevel < RECMAXUNDOLEVEL)
-		prevrec[undolevel] = baserec;
-	else
-		return;
+	RecAddToUndoList();
+
+	temprec = baserec;
 
 	ZeroMemory(baserec.recbuf, RECBUFSTANDARDSIZE * sizeof(float));
-	CopyMemory(baserec.recbuf, prevrec[undolevel].recbuf, (regionBegin) * sizeof(float));
-	CopyMemory(baserec.recbuf + regionBegin, prevrec[undolevel].recbuf + regionEnd, (baserec.bufpos - regionEnd) * sizeof(float));
+	CopyMemory(baserec.recbuf, temprec.recbuf, (regionBegin) * sizeof(float));
+	CopyMemory(baserec.recbuf + regionBegin, temprec.recbuf + regionEnd, (baserec.bufpos - regionEnd) * sizeof(float));
 
 	streamrec.playpos = 0;
 	baserec.unipos = 0;
 	baserec.bufpos -= (regionEnd - regionBegin);
 
 	RecorderResetRegion();
-
-	undolevel += 1;
 }
 
 void RecorderMuteRegion()
@@ -2171,17 +2198,13 @@ void RecorderMuteRegion()
 	if (regionEnd - regionBegin == 0)
 		return;
 
-	if (undolevel < RECMAXUNDOLEVEL)
-		prevrec[undolevel] = baserec;
-	else
-		return;
+
+	RecAddToUndoList();
 
 	for (int i = regionBegin; i < regionEnd; ++i)
 		baserec.recbuf[i] = 0.0f;
 
 	RecorderResetRegion();
-
-	undolevel += 1;
 }
 
 bool IsRecorderRegionSet()
@@ -2498,10 +2521,7 @@ void RecorderFixAutoNote()
 
 void RecorderApplyAutoNote()
 {
-	if (undolevel < RECMAXUNDOLEVEL)
-		prevrec[undolevel++] = baserec;
-	else
-		return;
+	RecAddToUndoList();
 
 //	NormalizeRec(baserec);
 
@@ -2522,7 +2542,7 @@ void RecorderApplyAutoNote()
 		end = baserec.bufpos;
 	if (end - begin < RECAUTONOTECHUNK * 2)
 	{
-		undolevel -= 1;
+		UndoFXFromRec();
 		return;
 	}
 
@@ -2605,7 +2625,7 @@ bool OpenRec(const char* filename)
 //		int dif = lenb - i;
 //		if (dif < csize)
 //			csize = dif;
-		baserec.recbuf[i] = FixDeviceBit(af.samples[0][i]);
+		baserec.recbuf[i] = FixDeviceBit(af.samples[0][i]) * 0.33f;
 		//RecorderPushData(&af.samples[0][0] + i, csize);
 		i += 1;
 	}
@@ -2692,10 +2712,7 @@ void RecorderCaptureNoiseInRegion()
 
 void RecorderReduceNoiseInRegion()
 {
-	if (undolevel < RECMAXUNDOLEVEL)
-		prevrec[undolevel++] = baserec;
-	else
-		return;
+	RecAddToUndoList();
 
 	if (!isRegionSet)
 		return;
@@ -2712,10 +2729,7 @@ bool IsRecordNormalized()
 
 void SmoothRecByFFT()
 {
-	if (undolevel < RECMAXUNDOLEVEL)
-		prevrec[undolevel++] = baserec;
-	else
-		return;
+	RecAddToUndoList();
 
 	FFTNormalize(baserec.recbuf, baserec.bufpos, FFTDSPLEN, recQFX / 2.0f );
 }
@@ -2843,10 +2857,7 @@ void InvertRec()
 {
 	if (!bDisableUndo)
 	{
-		if (undolevel < RECMAXUNDOLEVEL)
-			prevrec[undolevel++] = baserec;
-		else
-			return;
+		RecAddToUndoList();
 	}
 
 	for (int i = 0; i < baserec.bufpos; ++i)
@@ -2869,18 +2880,90 @@ void RecorderApplyMFX()
 	if (!recMFX)
 		return;
 
-	if (undolevel < RECMAXUNDOLEVEL)
-		prevrec[undolevel++] = baserec;
+	if (recMFX->GetEffectType() == MFXTYPE_INSPECTOR)
+	{
+		recMFX->ProcessEffect(baserec.recbuf, baserec.bufpos, recQFX);
+	}
 	else
-		return;
-
 	if (recMFX->GetEffectType() == MFXTYPE_GENERATOR)
 	{
+		RecAddToUndoList();
+
 		baserec.bufpos = recMFX->ProcessEffect(baserec.recbuf, RECBUFSAMPLES(150), recQFX);
 		baserec.writepos = baserec.bufpos;
 	}
 	else
 	{
+		RecAddToUndoList();
+
 		recMFX->ProcessEffect(baserec.recbuf, baserec.bufpos, recQFX);
+	}
+}
+
+void RecAddToUndoList()
+{
+	undoindex.push(undolevel);
+	prevrec[undolevel] = baserec;
+	undolevel += 1;
+	if (undolevel >= RECMAXUNDOLEVEL)
+		undolevel = 0;
+}
+
+void UndoFXFromRec()
+{
+	if (undoindex.size() == 0)
+		return;
+
+	baserec = prevrec[undoindex.top()];
+	undoindex.pop();
+}
+
+bool RecorderCanUndo()
+{
+	return undoindex.size() > 0;
+}
+
+bool RecorderCanDoFX()
+{
+	return true;
+}
+
+#define CLEANPEN 2048
+
+void HelperCleanTape(const char* tapefilename)
+{
+	HFILE file;
+	OFSTRUCT ofst;
+	file = OpenFile(tapefilename, &ofst, OF_CREATE);
+	if (file != HFILE_ERROR)
+	{
+		short zeros[CLEANPEN];
+		ZeroMemory(zeros, CLEANPEN * sizeof(short));
+
+		for (int j = 0; j < RECBUFSTANDARDSIZE; j += CLEANPEN)
+		{
+			DWORD written;
+			WriteFile((HANDLE)file, zeros, CLEANPEN * sizeof(short), &written, 0);
+			if (written != CLEANPEN * sizeof(short))
+			{
+				WriteToLog("Error cleaning tapes.");
+			}
+		}
+
+		FlushFileBuffers((HANDLE)file);
+	}
+	else
+	{
+		WriteToLog("Cannot open tape file for cleaning.");
+	}
+	CloseHandle((HANDLE)file);
+}
+
+void RecCleanTapes(int passes)
+{
+	for (int i = 0; i < passes; ++i)
+	{
+		HelperCleanTape(getProgramFileName("tape.bin"));
+		HelperCleanTape(getProgramFileName("tape_polarized.bin"));
 	}
 }

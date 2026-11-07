@@ -17,6 +17,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ParametricEQMFX", "Portable
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "KissFFT", "PortableTapeRecorder\KissFFT\KissFFT.vcxproj", "{E2B57BD3-0F61-4686-9954-968045F5BAA4}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DigitalCompressorMFX", "PortableTapeRecorder\DigitalCompressorMFX\DigitalCompressorMFX.vcxproj", "{DD28B27C-4EAD-469D-977A-B702356A1E03}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -81,6 +83,14 @@ Global
 		{E2B57BD3-0F61-4686-9954-968045F5BAA4}.Release|x64.Build.0 = Release|x64
 		{E2B57BD3-0F61-4686-9954-968045F5BAA4}.Release|x86.ActiveCfg = Release|Win32
 		{E2B57BD3-0F61-4686-9954-968045F5BAA4}.Release|x86.Build.0 = Release|Win32
+		{DD28B27C-4EAD-469D-977A-B702356A1E03}.Debug|x64.ActiveCfg = Debug|x64
+		{DD28B27C-4EAD-469D-977A-B702356A1E03}.Debug|x64.Build.0 = Debug|x64
+		{DD28B27C-4EAD-469D-977A-B702356A1E03}.Debug|x86.ActiveCfg = Debug|Win32
+		{DD28B27C-4EAD-469D-977A-B702356A1E03}.Debug|x86.Build.0 = Debug|Win32
+		{DD28B27C-4EAD-469D-977A-B702356A1E03}.Release|x64.ActiveCfg = Release|x64
+		{DD28B27C-4EAD-469D-977A-B702356A1E03}.Release|x64.Build.0 = Release|x64
+		{DD28B27C-4EAD-469D-977A-B702356A1E03}.Release|x86.ActiveCfg = Release|Win32
+		{DD28B27C-4EAD-469D-977A-B702356A1E03}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

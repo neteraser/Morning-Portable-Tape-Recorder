@@ -41,6 +41,9 @@ struct CurrentSettings
 
 extern CurrentSettings cursettings;
 
+void ResetCurrentSettings();
+void ApplyCurrentSettings();
+
 
 #ifdef _DEBUG
 #define DOBAKERESOURCES

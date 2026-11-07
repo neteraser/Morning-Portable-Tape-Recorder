@@ -47,6 +47,7 @@ public:
 
 #define MFXTYPE_EFFECT (0)
 #define MFXTYPE_GENERATOR (1)
+#define MFXTYPE_INSPECTOR (2)
 
 class MFXAPI MorningFX
 {

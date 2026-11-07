@@ -103,3 +103,11 @@ x64 build uses the latest version of the Intel MKL (Math Kernel Library) to do F
 x86 build uses KissFFT library for the EQ plugin.
 
 Bass Library is switched off in the 64bit/x64 build.
+
+v.0.9.4
+
+This version includes the simplest, most dishonest Digital Compressor MFX plugin with our very special "Dead-meter" helping you to realize that records do have HEALTH and require to be "health-kitted" like soldiers in #THEDOOM game.
+
+Plus minor fixes and improvements. Particularly, now you can find the "Clean" button in the settings of the app, to clean your virtual HDD recording tapes.
+
+This app is now an official HDD eater in Microsoft Windows, which is authentic and granted for recording apps.

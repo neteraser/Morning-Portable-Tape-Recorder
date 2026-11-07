@@ -1,8 +1,0 @@
-﻿  pch.cpp
-  kfc.c
-  kiss_fft.c
-  kiss_fftnd.c
-  kiss_fftndr.c
-  kiss_fftr.c
-  KissFFT.cpp
-  KissFFT.vcxproj -> D:\Projects\PortableTapeRecorder\PortableTapeRecorder\lib\KissFFT.lib

@@ -7,6 +7,7 @@
 #include <process.h>
 #include <thread>
 #include <chrono>
+#include <stdlib.h>
 
 HWND gwnd;
 
@@ -52,7 +53,8 @@ float portytrackplaybuf[PLAYUPDATECHUNK * 2];
 
 __inline float PortYInt16ToFloat(short sv)
 {
-    sv -= 1;
+    if(sv > -32768) 
+        sv -= 1;
     float fv = ((float)sv);
     //fv *= 32768.0f / 32767.0f;
     fv /= 32768.0f;
@@ -547,13 +549,13 @@ template<typename BufferInterface> bool RefreshRecFunc(BufferInterface* buffer)
         if (FAILED(hr))
             return false;
 
-        DWORD curPos = capturePos;
+        DWORD curPos = min(capturePos, readPos);
         //if( capturePos - readPos )
 
     redowrite:
-        int diff = curPos - lastRecPos;
+        long diff = curPos - lastRecPos;
 
-        if (diff > RECUPDATECHUNK)
+        if (diff >= RECUPDATECHUNK)
         {
             LPVOID pAudio;
             DWORD pLen;
@@ -586,7 +588,8 @@ template<typename BufferInterface> bool RefreshRecFunc(BufferInterface* buffer)
             //////////////////
 
             lastRecPos += pLen;
-            goto redowrite;
+            if(pLen >= RECUPDATECHUNK)
+                goto redowrite;
         }
     }
     return true;
@@ -622,6 +625,8 @@ template<typename BufferInterface> bool RefreshPlayFunc(BufferInterface* buffer)
             lastUpdatePos = PLAYUPDATECHUNK * 2;
         }
 
+        redoplay: 
+
         long diff = lastUpdatePos - playPos;// % (48000 * 2);
 
         if (diff > PLAYUPDATECHUNK && diff < PLAYUPDATECHUNK * 2)
@@ -656,7 +661,9 @@ template<typename BufferInterface> bool RefreshPlayFunc(BufferInterface* buffer)
             if (FAILED(hr))
                 return false;
 
-            lastUpdatePos += PLAYUPDATECHUNK * 2;
+            lastUpdatePos += pLen;
+            if (pLen >= RECUPDATECHUNK * 2)
+                goto redoplay;
         }
     }
     return true;
@@ -688,10 +695,12 @@ bool RefreshRemasterFunc(CaptureBufferInterface* captureBuffer, BufferInterface*
         if (FAILED(hr))
             return false;
 
-    redowrite:
-        int diff = capturePos - lastRecPos;
+        DWORD curPos = min(capturePos, readPos);
 
-        if (diff > RECUPDATECHUNK)
+    redowrite:
+        long diff = curPos - lastRecPos;
+
+        if (diff >= RECUPDATECHUNK)
         {
             LPVOID pAudio;
             DWORD pLen;
@@ -722,7 +731,9 @@ bool RefreshRemasterFunc(CaptureBufferInterface* captureBuffer, BufferInterface*
             reccall(portytrackbuf, samplesNumber);
 
             lastRecPos += pLen;
-            goto redowrite;
+
+            if (pLen >= RECUPDATECHUNK)
+                goto redowrite;
         }
     }
 

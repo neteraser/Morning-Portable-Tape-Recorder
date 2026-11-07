@@ -103,6 +103,7 @@
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
       <AdditionalIncludeDirectories>$(DXSDK_DIR)\Include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <LanguageStandard>Default</LanguageStandard>
     </ClCompile>
     <Link>
       <AdditionalOptions>d3d9.lib d3dx9.lib dinput8.lib dxguid.lib winmm.lib  bass.lib libmp3lame.lib /NODEFAULTLIB:libcmt.lib MorningHiddenAudioProcessingd.lib %(AdditionalOptions)</AdditionalOptions>
@@ -123,6 +124,7 @@
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <AdditionalIncludeDirectories>$(DXSDK_DIR)\Include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <LanguageStandard>Default</LanguageStandard>
     </ClCompile>
     <Link>
       <AdditionalOptions>d3d9.lib d3dx9.lib dinput8.lib dxguid.lib winmm.lib  bass.lib libmp3lame64.lib /NODEFAULTLIB:libcmt.lib MorningHiddenAudioProcessing64d.lib %(AdditionalOptions)</AdditionalOptions>
@@ -144,6 +146,7 @@
       <WarningLevel>Level1</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <AdditionalIncludeDirectories>$(DXSDK_DIR)\Include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <LanguageStandard>Default</LanguageStandard>
     </ClCompile>
     <Link>
       <AdditionalOptions>d3d9.lib d3dx9.lib dinput8.lib dxguid.lib winmm.lib libmp3lame.lib MorningHiddenAudioProcessing.lib bass.lib %(AdditionalOptions)</AdditionalOptions>
@@ -167,6 +170,7 @@
       <WarningLevel>Level1</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <AdditionalIncludeDirectories>$(DXSDK_DIR)\Include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <LanguageStandard>Default</LanguageStandard>
     </ClCompile>
     <Link>
       <AdditionalOptions>d3d9.lib d3dx9.lib dinput8.lib dxguid.lib winmm.lib libmp3lame64.lib MorningHiddenAudioProcessing64.lib bass.lib %(AdditionalOptions)</AdditionalOptions>
@@ -227,6 +231,9 @@
     <Xml Include="portabletaperecordersettings.xml" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="DigitalCompressorMFX\DigitalCompressorMFX.vcxproj">
+      <Project>{dd28b27c-4ead-469d-977a-b702356a1e03}</Project>
+    </ProjectReference>
     <ProjectReference Include="MorningHiddenAudioProcessing\MorningHiddenAudioProcessing.vcxproj">
       <Project>{253b7a89-71b8-4622-a5f2-11a603101c00}</Project>
     </ProjectReference>

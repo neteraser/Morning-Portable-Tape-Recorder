@@ -32,9 +32,9 @@ HWND mainWnd;
 HINSTANCE mainInstance;
 
 #ifdef REC64BIT
-#define RECORDER_VERSION_STRING "v.0.9.3 64 bit"
+#define RECORDER_VERSION_STRING "v.0.9.4 64 bit"
 #else
-#define RECORDER_VERSION_STRING "v.0.9.3 32 bit"
+#define RECORDER_VERSION_STRING "v.0.9.4 32 bit"
 #endif
 
 const char* diskName = "PortableTapeRecorder";
@@ -1411,6 +1411,7 @@ fftnormX = 460, fftnormY = 520,
 liftupX = 720, liftupY = 465,
 invertX = 850, invertY = 500,
 applyX = 680, applyY = 18,
+cleanX = 480, cleanY = 18,
 settingsX = 350, settingsY = 25,
 loopX = 180, loopY = 480,
 onoffX = 400, onoffY = 10,
@@ -1460,6 +1461,7 @@ remasterplayingImage, remasterplayingOverImage,
 meterImage,
 settingsImage, settingsOverImage,
 applyImage, applyOverImage,
+cleanImage, cleanOverImage,
 loopOnImage, loopOnOverImage,
 loopOffImage, loopOffOverImage,
 onImage, onOverImage,
@@ -1527,6 +1529,7 @@ int meter;
 int stop[2];
 int settingsimg[2];
 int applyimg[2];
+int clean[2];
 int loopon[2];
 int loopoff[2];
 int onimg[2];
@@ -2293,7 +2296,7 @@ void DrawMainScreen()
 		DrawPicture(regulating? regulatorpressimg : regulatorimg, regulatorX, regulatorY);
 
 		//static float 
-		static float ptrv = (1.0f - regulatorCurrentValue) * 300.0f + 30.0f;
+		float ptrv = (1.0f - regulatorCurrentValue) * 300.0f + 30.0f;
 		float ptrx = (cosf(DegreesToRadians(-90.0f + ptrv)) + 1.0f) / 2.0f;
 		float ptry = (sinf(DegreesToRadians(-90.0f + ptrv)) + 1.0f) / 2.0f;
 		float regwidth = (float) pictures[regulatorimg].width;
@@ -2960,14 +2963,14 @@ void DrawSettingsScreen()
 	if (DrawChecker(delayslow, delayslowX, delayslowY, delaymode == 1))
 	{
 		delaymode = 1;
-		RecorderSetStretchSamples(tapeSlowdownSamples);
+		RecorderSetStretchSamples(tapeSlowdownMode2Samples);
 		cursettings.delaymode = delaymode;
 	}
 
 	if (DrawChecker(delayfast, delayfastX, delayfastY, delaymode == 0))
 	{
 		delaymode = 0;
-		RecorderSetStretchSamples(tapeSlowdownMode2Samples);
+		RecorderSetStretchSamples(tapeSlowdownSamples);
 		cursettings.delaymode = delaymode;
 	}
 
@@ -2984,6 +2987,14 @@ void DrawSettingsScreen()
 		//RecorderDeviceRetrieve();
 		//spFrame = 1;
 		ChangeAppFrame(1);
+	}
+
+	if (DrawButton(clean, cleanX, cleanY))
+	{
+		RecCleanTapes(5);
+		ResetCurrentSettings();
+		ApplyCurrentSettings();
+		MessageBox(mainWnd, "Recording tapes cleaned", "Success!", MB_OK);
 	}
 }
 
@@ -3171,7 +3182,7 @@ void DrawStatisticsScreen()
 	
 	ResetColor();
 
-	float notesX  = 305, notesY = 320;
+	float notesX  = 315, notesY = 327;
 	const float notesYoffset = 23;
 
 	DrawText(font, notesX, notesY, notesX + 150, notesY + 20, D3DCOLOR_RGBA(255, 255, 255, 255), note_amp.c_str());
@@ -3243,9 +3254,22 @@ void ResetCurrentSettings()
 	cursettings.coloration = 0;
 	cursettings.audiolibrary = 0;
 	cursettings.delaymode = 0;
-	cursettings.rq = 0.0f;
+	cursettings.rq = regulatorDefaultValue;
 	ZeroMemory(cursettings.device, 256);
 	ZeroMemory(cursettings.recdevice, 256);
+}
+
+void ApplyCurrentSettings()
+{
+	RecorderSetColoration(cursettings.coloration);
+	regulatorCurrentValue = cursettings.rq;
+	RecorderSetQFX(cursettings.rq);
+	SwitchAudioLibrary(cursettings.audiolibrary, mainWnd, RECBUFFERDELAYMS);
+	if(cursettings.delaymode == 0)
+		RecorderSetStretchSamples(tapeSlowdownSamples);
+	else
+		RecorderSetStretchSamples(tapeSlowdownMode2Samples);
+	DeviceCheck();
 }
 
 void RestoreCurrentSettings()
@@ -3380,6 +3404,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 	loading = LoadPicture("images/loading.png");
 
 	DrawStartupScreen();
+
+	RecCleanTapes();
 
 	//////////////////////////////////////////////////////////////////
 
@@ -3574,6 +3600,14 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 			temp->Attribute("y", &applyY);
 			applyImage = temp->Attribute("image");
 			applyOverImage = temp->Attribute("onMouseOver");
+		}
+
+		if (strcmp(id, "clean") == 0)
+		{
+			temp->Attribute("x", &cleanX);
+			temp->Attribute("y", &cleanY);
+			cleanImage = temp->Attribute("image");
+			cleanOverImage = temp->Attribute("onMouseOver");
 		}
 
 
@@ -4061,6 +4095,9 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, char*, int)
 
 	applyimg[0] = LoadPicture("images/" + applyImage);
 	applyimg[1] = LoadPicture("images/" + applyOverImage);
+
+	clean[0] = LoadPicture("images/" + cleanImage);
+	clean[1] = LoadPicture("images/" + cleanOverImage);
 
 	settingsimg[0] = LoadPicture("images/" + settingsImage);
 	settingsimg[1] = LoadPicture("images/" + settingsOverImage);
